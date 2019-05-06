@@ -140,6 +140,9 @@ cb$overall
 
 
 
+
+# Causal Tree Tryout ------------------------------------------------------
+
 library(causalTree)
 tree1 <- causalTree(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + segment+ visit, data = trainData, treatment = trainData$treatment,
                    split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
@@ -154,6 +157,13 @@ summary(tree1)
 
 str(trainData)
 summary(trainData)
+
+
+
+
+# UPLIFT RF Tryout --------------------------------------------------------
+
+
 
 upliftRF <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel + segment+ visit,
                      data = trainData,
