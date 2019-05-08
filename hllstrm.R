@@ -205,8 +205,12 @@ tree_men <- causalTree(spend~recency + history + history_segment + zip_code + ch
                        split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
                        xval = 10 , minsize = 50, propensity = 0.5)
 
-#opcp <- tree$cptable[,1][which.min(tree$cptable[,4])]
-#opfit <- prune(tree, opcp)
+rpart.plot(tree_men)
+summary(tree_men)
+
+opcp <- tree_men$cptable[,1][which.min(tree_men$cptable[,4])]
+opfit <- prune(tree_men, cp=opcp)
+rpart.plot(opfit)
 
 rpart.plot(tree_men)
 summary(tree_men)
