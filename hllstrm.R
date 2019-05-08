@@ -153,8 +153,6 @@ summary(testData_mens[,c("conversion","treatment")])
 summary(trainData_mens[,c("conversion","treatment")])
 summary(testData_mens[,c("conversion","treatment")])
 
-prop.table(testData_mens[,c("conversion","treatment")], mean)
-
 # Average Treatment Effect (ATE) ---------------------------------------------------
 
 experiment <- table(list("Treated" = hllstrm$treatment, "Converted" = hllstrm$conversion))
@@ -176,7 +174,7 @@ mean(hllstrm$spend[hllstrm$treatment==1]) - mean(hllstrm$spend[hllstrm$treatment
 # Check whether the data has been randomly assigned. This is an important assumptions in uplift modeling and, more generally, experimental designs. To verify a random assignment, we have to check the balance of the A/B indicator. The function checkBalance calculates standardized mean differences along each covariate and tests for conditional independence of the treatment variable and the covariates. In randomized empirical experiments the treatment and control groups should be roughly similar (i.e. balanced) in their distributions of covariates.
 # Of course, we would expect the conversion rate to be different between the treatment and control group
 #library("uplift")
-cb <- checkBalance(treatment~.-conversion, data = trainData, report = c("adj.means", "adj.mean.diffs", "p.values", "chisquare.test"))
+cb <- checkBalance(treatment~.-conversion, data = trainData_mens, report = c("adj.means", "adj.mean.diffs", "p.values", "chisquare.test"))
 
 # Balance properties of first ten covariates 
 # Be aware that the results are saved as a tensor or '3D matrix'.
@@ -199,9 +197,13 @@ str(trainData_womens)
 
 
 library(causalTree)
+# tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
+#                    split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
+#                    xval = NULL, cp = 0.00032, minsize = 30, propensity = 0.5)
+
 tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
-                   split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-                   xval = NULL, cp = 0.0005, minsize = 20, propensity = 0.5)
+                       split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
+                       xval = 10 , minsize = 50, propensity = 0.5)
 
 #opcp <- tree$cptable[,1][which.min(tree$cptable[,4])]
 #opfit <- prune(tree, opcp)
@@ -209,13 +211,27 @@ tree_men <- causalTree(spend~recency + history + history_segment + zip_code + ch
 rpart.plot(tree_men)
 summary(tree_men)
 
+pred_CausalTree_mens <- predict(object = tree_men, newdata = testData_mens)
+# The predictions differentiate between the treatment and control condition
+# pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
+# pr.y1_ct1 gives an estimate for a person to convert when in the control group
+head(pred_CausalTree_mens) 
+summary(pred_CausalTree_mens)
+
+# Our goal is to identify the people for whom the treatment will lead to a large increase 
+# in conversion probability, i.e. where the difference between the treatment prob. and the
+# control prob. is positive and high
+pred_mens[["CausalTree"]] <- pred_CausalTree_mens[, 1] - pred_CausalTree_mens[, 2]
+# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
+summary(pred_mens[["CausalTree"]])
+head(pred_mens)
+
 
 # Causal Tree WOMENS ------------------------------------------------------
 
-library(causalTree)
 tree_women <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_womens, treatment = trainData_womens$treatment,
                        split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-                       xval = NULL, cp = 0.0005, minsize = 20, propensity = 0.5)
+                       xval = NULL, cp = 0.0005, minsize = 30, propensity = 0.5)
 
 #### STEEP FALLOFF depending on cp and minsize tuning!
 
@@ -238,7 +254,7 @@ upliftRF_men <- upliftRF(conversion ~ trt(treatment) +recency + history +history
                      mtry = 5,
                      ntree = 300,
                      split_method = "KL",
-                     minsplit = 30,
+                     minsplit = 50,
                      verbose = TRUE)
 summary(upliftRF_men)
 ### ONLY WORKS WITH BINARY TARGET
@@ -273,35 +289,24 @@ upliftRF_women <- upliftRF(conversion ~ trt(treatment) +recency + history +histo
                            mtry = 5,
                            ntree = 300,
                            split_method = "KL",
-                           minsplit = 30,
+                           minsplit = 50,
                            verbose = TRUE)
 summary(upliftRF_women)
 varImportance(upliftRF_women, plotit = FALSE, normalize = TRUE)
 
-# Predictions for fitted Uplift RF model
 pred_womens <- list()
 pred_upliftRF_womens <- predict(object = upliftRF_women, newdata = testData_womens)
 head(pred_upliftRF_womens)
 
 pred_womens[["upliftRF"]] <- pred_upliftRF_womens[, 1] - pred_upliftRF_womens[, 2]
-# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
 summary(pred_womens[["upliftRF"]])
 
 
 
-# TWO MODEL APPROACH---------------------------------------------------------------
+# TWO MODEL APPROACH (REGRESSION AND DECISION TREES) ---------------------------------------------------------------
 
 #### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
 #### MIGHT VERY WELL BE VERY WRONG!
-
-
-# treatment <- hllstrm[hllstrm$treatment==1,]
-# control <- hllstrm[hllstrm$treatment==0,]
-
-str(treatment)
-str(control)
-summary(treatment)
-summary(control)
 
 glm_men_treat <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=trainData_mens)
 glm_men_contr <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=control)
@@ -310,22 +315,16 @@ summary(glm_men_treat)
 summary(glm_men_contr)
 
 library(rpart)
-
-rpart = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + visit, data=control)
+rpart_contr = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=control, cp=0.0017, xval=10, model=TRUE)
 prp(rpart)
 summary(rpart)
 
-rpart2 = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + visit, data=treatment)
-prp(rpart2)
-summary(rpart2)
+rpart_men = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=trainData_mens[trainData_mens$treatment==1,], cp=0.0017, xval=10, model=TRUE)
+prp(rpart_men)
+summary(rpart_men)
 
 
-
-
-
-
-
-# CARTE SMOTE SAMPLING TRYOUT ---------------------------------------------
+# CARET SMOTE SAMPLING TRYOUT ---------------------------------------------
 
 ctrl <- trainControl(method = "repeatedcv", 
                      number = 10, 
@@ -342,3 +341,51 @@ model_rf_smote <- caret::train(spend~recency + history +history_segment + mens +
 
 
 
+
+# Performance Assessment for Uplift Models  ---------------------------------------------
+
+# Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
+
+treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
+treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],               "effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
+
+head(treatment_effect_groups, 10)
+
+# We cannot calculate the true treatment effect per person, but per group
+treatment_effect_groups$Decile <- cut(treatment_effect_groups$effect_estimate, breaks = 10, labels=FALSE)
+head(treatment_effect_groups)
+tail(treatment_effect_groups, 4)
+
+treatment_groups <- aggregate(treatment_effect_groups[,c("Conversion","effect_estimate")], 
+by=list("Decile"=treatment_effect_groups$Decile, "Treatment"=treatment_effect_groups$Treatment), 
+FUN=mean)
+# Conversion of customer without a treatment/coupon ranked by prediction
+{plot(treatment_groups$Conversion[10:1], type='l')
+# Conversion of customer with a treatment/coupon ranked by prediction
+lines(treatment_groups$Conversion[20:11], type='l', col="red")}
+## -> The uplift is the area between the curves
+treatment <- treatment_groups$Conversion[20:11] - treatment_groups$Conversion[10:1]
+
+# {uplift} has a function to calculate the Qini coefficient
+# Argument direction specifies whether we aim to maximize (P_treatment - P_control) or (P_control - P_treatment), or in other words
+# whether we aim for a high (purchase) probability or low (churn) probability
+
+perf_upliftRF <- uplift::performance(pr.y1_ct1 = pred_upliftRF[, 1], pr.y1_ct0 = pred_upliftRF[, 2], 
+# with/without treatment prob.
+y = testData$Conversion, ct = testData$Treatment, # outcome and treatment indicators
+direction = 1, # maximize (1) or minimize (2) the difference? 
+groups = 10)
+
+perf_upliftRF
+# Plot uplift random forest performance
+plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
+plot(treatment, col='red')
+
+# The Qini coefficient (derived from the Gini coefficient to measure the deviation from an equal distribution) is 
+# defined as the area between the incremental gains curve of the model and the area under the diagonal resulting from random targeting
+# in relation to the percentage of the population targeted.
+Qini_upliftRF <- qini(perf_upliftRF, plotit = TRUE) 
+
+Qini <- list()
+Qini[["upliftRF"]] <- Qini_upliftRF$Qini
+# The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here. 
