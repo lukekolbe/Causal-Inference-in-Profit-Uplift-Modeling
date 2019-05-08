@@ -7,6 +7,7 @@ install.packages("caret")
 library(grf)
 library(devtools) 
 library("uplift")
+library(caret)
 
 install_github("susanathey/causalTree")
 library(causalTree)
@@ -34,11 +35,14 @@ summary(hllstrm$segment)
 summary(hllstrm$spend)
 table(hllstrm$spend>0)
 
+table(hllstrm$segment)
 
 hllstrm$treatment <- ifelse(hllstrm$segment=="No E-Mail", 0, 1)
 
-hllstrm$z_var1 <- 0
+# TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
 
+hllstrm$z_var1 <- 0
+  
 for (i in seq_along(1:nrow(hllstrm))){
   
   if(hllstrm$treatment[i]==1&&hllstrm$spend[i]>0){ 
@@ -63,8 +67,19 @@ str(hllstrm)
 
 
 
+# SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
+
+mens <- rbind(hllstrm[hllstrm$segment=="Mens E-Mail",],hllstrm[hllstrm$segment=="No E-Mail",])
+womens <- rbind(hllstrm[hllstrm$segment=="Womens E-Mail",],hllstrm[hllstrm$segment=="No E-Mail",])
+control <- hllstrm[hllstrm$segment=="No E-Mail",]
+
+table(mens$spend>0, mens$segment)
+table(womens$spend>0, womens$segment)
+table(control$spend>0, control$segment)
+
       #### THIS TRIES TO STRATIFY ALONG THE VARIABLES CONVERSION AND TREATMENT (WITH THREE GROUPS)
       #### it fails
+      #### WE SHOULD INSTEAD SPLIT THE POPULATION ALONG THE LINES OF THE TREATMENT AND DO 50/50 SPLITS
       # train_indices <- list()
       # combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c("Mens E-Mail","No E-Mail","Womens E-Mail")))
       # 
@@ -85,31 +100,63 @@ str(hllstrm)
       # summary( testData[,c("Conversion","Treatment")])
 
 
-train_indices <- list()
+train_indices_mens <- list()
+train_indices_womens <- list()
+
 combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1)))
 
 xtabs(~conversion+treatment, hllstrm)
-sample_size <- as.numeric(xtabs(~conversion+treatment, hllstrm))
+xtabs(~conversion+treatment, mens)
+xtabs(~conversion+treatment, womens)
+xtabs(~conversion+treatment, control)
+
+sample_size_mens <- as.numeric(xtabs(~conversion+treatment, mens))
+sample_size_womens <- as.numeric(xtabs(~conversion+treatment, womens))
+
+# for(i in 1:4){
+#   train_indices[[i]] <- sample(which(hllstrm$conversion == combinations$Conversion[i] &
+#                                             hllstrm$treatment == combinations$Treatment[i])
+#                                     , size = round(0.75*sample_size[i]), replace=FALSE) 
+# } 
 
 for(i in 1:4){
-  train_indices[[i]] <- sample(which(hllstrm$conversion == combinations$Conversion[i] &
-                                        hllstrm$treatment == combinations$Treatment[i])
-                                , size = round(0.75*sample_size[i]), replace=FALSE) 
+  train_indices_mens[[i]] <- sample(which(mens$conversion == combinations$Conversion[i] &
+                                            mens$treatment == combinations$Treatment[i])
+                                , size = round(0.25*sample_size_mens[i]), replace=FALSE) 
 } 
-#### this has issues in all cases where the sample size is not a multiple of 4 (0.75 = 3/4)
-#### I assume rounding error
 
+for(i in 1:4){
+  train_indices_womens[[i]] <- sample(which(womens$conversion == combinations$Conversion[i] &
+                                              womens$treatment == combinations$Treatment[i])
+                                    , size = round(0.25*sample_size_womens[i]), replace=FALSE) 
+} 
 
-trainIndex <- c(train_indices, recursive=TRUE)
+# trainIndex <- c(train_indices, recursive=TRUE)
 
-trainData <- hllstrm[trainIndex,]
-testData  <- hllstrm[-trainIndex,]
+trainIndex_mens <- c(train_indices_mens, recursive=TRUE)
+trainIndex_womens <- c(train_indices_womens, recursive=TRUE)
 
-summary(trainData[,c("conversion","treatment")])
-summary( testData[,c("conversion","treatment")])
+# trainData <- hllstrm[trainIndex,]
+# testData  <- hllstrm[-trainIndex,]
 
+trainData_mens <- mens[-trainIndex_mens,]
+testData_mens  <- mens[trainIndex_mens,]
 
-## Average Treatment Effect (ATE)
+trainData_womens <- womens[-trainIndex_womens,]
+testData_womens  <- womens[trainIndex_womens,]
+
+table(trainData_mens$spend>0, trainData_mens$segment)
+table(trainData_womens$spend>0, trainData_womens$segment)
+
+summary(hllstrm[,c("conversion","treatment")])
+summary(testData_mens[,c("conversion","treatment")])
+summary(trainData_mens[,c("conversion","treatment")])
+summary(testData_mens[,c("conversion","treatment")])
+
+prop.table(testData_mens[,c("conversion","treatment")], mean)
+
+# Average Treatment Effect (ATE) ---------------------------------------------------
+
 experiment <- table(list("Treated" = hllstrm$treatment, "Converted" = hllstrm$conversion))
 experiment
 
@@ -124,6 +171,7 @@ mean(hllstrm$spend[hllstrm$treatment==1]) - mean(hllstrm$spend[hllstrm$treatment
 
 
 
+# DATA SAMPLE INVESTIGATION -----------------------------------------------
 
 # Check whether the data has been randomly assigned. This is an important assumptions in uplift modeling and, more generally, experimental designs. To verify a random assignment, we have to check the balance of the A/B indicator. The function checkBalance calculates standardized mean differences along each covariate and tests for conditional independence of the treatment variable and the covariates. In randomized empirical experiments the treatment and control groups should be roughly similar (i.e. balanced) in their distributions of covariates.
 # Of course, we would expect the conversion rate to be different between the treatment and control group
@@ -143,94 +191,123 @@ cb$overall
 
 
 
-# Causal Tree Tryout ------------------------------------------------------
+# Causal Tree MENS ------------------------------------------------------
+
+
+str(trainData_mens)
+str(trainData_womens)
+
 
 library(causalTree)
-tree1 <- causalTree(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + segment+ visit, data = trainData, treatment = trainData$treatment,
-                   split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-                   xval = NULL, cp = 0.005, minsize = 20, propensity = 0.5)
+tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
+                   split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
+                   xval = NULL, cp = 0.0005, minsize = 20, propensity = 0.5)
 
 #opcp <- tree$cptable[,1][which.min(tree$cptable[,4])]
-
 #opfit <- prune(tree, opcp)
 
-rpart.plot(tree1)
-summary(tree1)
-
-str(trainData)
-summary(trainData)
+rpart.plot(tree_men)
+summary(tree_men)
 
 
+# Causal Tree WOMENS ------------------------------------------------------
+
+library(causalTree)
+tree_women <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_womens, treatment = trainData_womens$treatment,
+                       split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
+                       xval = NULL, cp = 0.0005, minsize = 20, propensity = 0.5)
+
+#### STEEP FALLOFF depending on cp and minsize tuning!
+
+#opcp <- tree$cptable[,1][which.min(tree$cptable[,4])]
+#opfit <- prune(tree, opcp)
+
+rpart.plot(tree_women)
+summary(tree_women)
 
 
-# UPLIFT RF Tryout --------------------------------------------------------
 
+# UPLIFT RF MENS --------------------------------------------------------
+# str(trainData_mens)
+# str(trainData_womens)
+# table(trainData$z_var2)
+# table(testData$z_var2)
 
-
-upliftRF <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel + segment+ visit,
-                     data = trainData,
+upliftRF_men <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+                     data = trainData_mens,
                      mtry = 5,
-                     ntree = 100,
-                     split_method = "KL", 
-                     minsplit = 50,
+                     ntree = 300,
+                     split_method = "KL",
+                     minsplit = 30,
                      verbose = TRUE)
-summary(upliftRF)
-
-table(trainData$z_var2)
-table(testData$z_var2)
-
-
-
-
-# upliftRF2 <- upliftRF(z_var2 ~ trt(treatment) +. -treatment,
-#                      data = trainData,
-#                      mtry = 5,
-#                      ntree = 100,
-#                      split_method = "KL", 
-#                      minsplit = 10,
-#                      verbose = TRUE)
-# summary(upliftRF2)
-###### does not work!! probably because the treatment distinction is already included in z_var2, 
-###### meaning that no control participants have 0
+summary(upliftRF_men)
+### ONLY WORKS WITH BINARY TARGET
 
 
 # Note that the summary() includes the raw variable importance values. More options are available for function varImportance().
-varImportance(upliftRF, plotit = FALSE, normalize = TRUE)
+varImportance(upliftRF_men, plotit = FALSE, normalize = TRUE)
 
 # Predictions for fitted Uplift RF model
-pred <- list()
-pred_upliftRF <- predict(object = upliftRF, newdata = testData)
+pred_mens <- list()
+pred_upliftRF_mens <- predict(object = upliftRF_men, newdata = testData_mens)
 # The predictions differentiate between the treatment and control condition
 # pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
 # pr.y1_ct1 gives an estimate for a person to convert when in the control group
-head(pred_upliftRF) 
+head(pred_upliftRF_mens) 
+summary(pred_upliftRF_mens) 
+
 
 # Our goal is to identify the people for whom the treatment will lead to a large increase 
 # in conversion probability, i.e. where the difference between the treatment prob. and the
 # control prob. is positive and high
-pred[["upliftRF"]] <- pred_upliftRF[, 1] - pred_upliftRF[, 2]
+pred_mens[["upliftRF"]] <- pred_upliftRF_mens[, 1] - pred_upliftRF_mens[, 2]
 # We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
-summary(pred[["upliftRF"]])
+summary(pred_mens[["upliftRF"]])
+head(pred_mens)
+
+
+# UPLIFT-RF WOMENS --------------------------------------------------------
+
+upliftRF_women <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+                           data = trainData_womens,
+                           mtry = 5,
+                           ntree = 300,
+                           split_method = "KL",
+                           minsplit = 30,
+                           verbose = TRUE)
+summary(upliftRF_women)
+varImportance(upliftRF_women, plotit = FALSE, normalize = TRUE)
+
+# Predictions for fitted Uplift RF model
+pred_womens <- list()
+pred_upliftRF_womens <- predict(object = upliftRF_women, newdata = testData_womens)
+head(pred_upliftRF_womens)
+
+pred_womens[["upliftRF"]] <- pred_upliftRF_womens[, 1] - pred_upliftRF_womens[, 2]
+# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
+summary(pred_womens[["upliftRF"]])
 
 
 
+# TWO MODEL APPROACH---------------------------------------------------------------
 
-# TWO MODEL ---------------------------------------------------------------
+#### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
+#### MIGHT VERY WELL BE VERY WRONG!
 
-treatment <- hllstrm[hllstrm$treatment==1,]
-control <- hllstrm[hllstrm$treatment==0,]
+
+# treatment <- hllstrm[hllstrm$treatment==1,]
+# control <- hllstrm[hllstrm$treatment==0,]
 
 str(treatment)
 str(control)
 summary(treatment)
 summary(control)
 
-glm_treat <- lm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + visit, family = gaussian, data=treatment)
-glm_contr <- lm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel + visit, family = gaussian, data=control)
+glm_men_treat <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=trainData_mens)
+glm_men_contr <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=control)
 
-summary(glm_contr)
-summary(glm_treat)
-
+summary(glm_men_treat)
+summary(glm_men_contr)
 
 library(rpart)
 
@@ -242,14 +319,26 @@ rpart2 = rpart(spend~recency + history +history_segment + mens + womens + zip_co
 prp(rpart2)
 summary(rpart2)
 
-# Causal Tree for REVENUE! -------------------------------------------------------------
-
-names(hllstrm)
-tree1 <- causalTree(spend ~ recency + history + mens + womens + zip_code + newbie + channel, data = hllstrm, treatment = hllstrm$treatment,
-                   split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = T, split.Bucket = F, xval = 5, 
-                   cp = 0, minsize = 20)
 
 
+
+
+
+
+# CARTE SMOTE SAMPLING TRYOUT ---------------------------------------------
+
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 10,
+                     verboseIter = FALSE,
+                     sampling = "smote")
+
+set.seed(42)
+model_rf_smote <- caret::train(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+                               data = trainData_mens,
+                               method = "glm",
+                               preProcess = c("scale", "center"),
+                               trControl = ctrl)
 
 
 
