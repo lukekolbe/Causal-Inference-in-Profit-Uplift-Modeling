@@ -54,4 +54,10 @@ table(bt$discountDelta<0, bt$controlGroup)
 table(bt$discountPercentage>0.5,bt$controlGroup, bt$basketValue>50)
 
 
+#bt_exclude <- bt[(bt$controlGroup==1 & bt$checkoutDiscount > 0),]
+bt <- bt[!(bt$controlGroup==1 & bt$checkoutDiscount > 0),]
+bt <- bt[!(bt$controlGroup==0 & bt$discountDelta < 0),]
+bt <- bt[!(bt$controlGroup==0 & bt$discountDelta < 0),]
+
+hist(bt$discountDelta[bt$discountDelta>0], breaks=700)
 
