@@ -1,18 +1,15 @@
-install.packages("grf")
-install.packages("uplift")
-install.packages("devtools")
-install.packages("caret")
+# install.packages("grf")
+# install.packages("uplift")
+# install.packages("devtools")
+# install.packages("caret")
+# install_github("susanathey/causalTree")
+# install_github("saberpowers/causalLearning")
+# library(devtools) 
 
-
-library(grf)
-library(devtools) 
-library("uplift")
-library(caret)
-
-install_github("susanathey/causalTree")
 library(causalTree)
-
-install_github("saberpowers/causalLearning")
+library(caret)
+library(grf)
+library("uplift")
 library(causalLearning)
 
 
