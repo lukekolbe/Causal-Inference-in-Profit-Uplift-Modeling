@@ -13,11 +13,13 @@ library("uplift")
 library(causalLearning)
 
 
+
 getwd()
-# setwd("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data")
-# hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
-setwd("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data")
-hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
+setwd("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data")
+hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
+
+# setwd("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data")
+# hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
 
 str(hllstrm)
@@ -31,7 +33,6 @@ summary(hllstrm)
 summary(hllstrm$segment)
 summary(hllstrm$spend)
 table(hllstrm$spend>0)
-
 table(hllstrm$segment)
 
 hllstrm$treatment <- ifelse(hllstrm$segment=="No E-Mail", 0, 1)
@@ -150,6 +151,10 @@ summary(testData_mens[,c("conversion","treatment")])
 summary(trainData_mens[,c("conversion","treatment")])
 summary(testData_mens[,c("conversion","treatment")])
 
+#cleaning the mens and womens set of any control group >> necessary for two-model
+# mens <- mens[mens$segment=="Mens E-Mail",]
+# womens <- womens[hllstrm$segment=="Womens E-Mail",]
+
 # Average Treatment Effect (ATE) ---------------------------------------------------
 
 experiment <- table(list("Treated" = hllstrm$treatment, "Converted" = hllstrm$conversion))
@@ -194,13 +199,14 @@ str(trainData_womens)
 
 
 library(causalTree)
-# tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
-#                    split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-#                    xval = NULL, cp = 0.00032, minsize = 30, propensity = 0.5)
-
 tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
-                       split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-                       xval = 10 , minsize = 50, propensity = 0.5)
+                   split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F,
+                   xval = 5, cp = 0.01, minsize = 30, propensity = 0.5)
+
+# tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, 
+#                        data = trainData_mens, treatment = trainData_mens$treatment,
+#                        split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
+#                        cp = 0, xval = 5 , minsize = 20, propensity = 0.5)
 
 rpart.plot(tree_men)
 summary(tree_men)
@@ -209,8 +215,6 @@ opcp <- tree_men$cptable[,1][which.min(tree_men$cptable[,4])]
 opfit <- prune(tree_men, cp=opcp)
 rpart.plot(opfit)
 
-rpart.plot(tree_men)
-summary(tree_men)
 
 pred_CausalTree_mens <- predict(object = tree_men, newdata = testData_mens)
 # The predictions differentiate between the treatment and control condition
@@ -230,7 +234,8 @@ head(pred_mens)
 
 # Causal Tree WOMENS ------------------------------------------------------
 
-tree_women <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_womens, treatment = trainData_womens$treatment,
+tree_women <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, 
+                         data = trainData_womens, treatment = trainData_womens$treatment,
                        split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
                        xval = NULL, cp = 0.0005, minsize = 30, propensity = 0.5)
 
@@ -309,7 +314,7 @@ summary(pred_womens[["upliftRF"]])
 #### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
 #### MIGHT VERY WELL BE VERY WRONG!
 
-glm_men_treat <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=trainData_mens)
+glm_men_treat <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=trainData_mens[trainData_mens$treatment==1,])
 glm_men_contr <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=control)
 
 summary(glm_men_treat)
