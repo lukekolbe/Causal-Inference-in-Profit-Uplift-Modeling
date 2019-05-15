@@ -1,0 +1,213 @@
+# install.packages("grf")
+# install.packages("uplift")
+# install.packages("devtools")
+# install.packages("caret")
+# install_github("susanathey/causalTree")
+# install_github("saberpowers/causalLearning")
+# install.packages("tools4uplift")
+
+library(devtools)
+library(causalTree)
+library(caret)
+library(grf)
+library("uplift")
+library(causalLearning)
+library(tidyverse)
+library(tools4uplift)
+
+
+# Causal Tree on checkoutAmount ------------------------------------------------------
+
+str(trainData_f_a2)
+
+n <- names(trainData_f_a2)
+f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount",
+                                                            "epochSecond","label","ViewedBefore.cart.", 
+                                                            "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount")], collapse = " + ")))
+
+
+tree_f_a3 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
+                        split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = T, minbucket=2,
+                        xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
+#cp = 0.0002 has decent size
+
+rpart.plot(tree_f_a)
+summary(tree_f_a)
+
+tree_f_a$cptable #### MODELING ON CHECKOUT AMOUNT GIVES NO GOOD RESULTS! the cross validation error INCREASES with any split
+
+# Causal Tree on label (transformed according to Gubela) ------------------------------------------------------
+
+f2 <- as.formula(paste("label ~", paste(n[!n %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount",
+                                                    "epochSecond","label","ViewedBefore.cart.", 
+                                                    "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount")], collapse = " + ")))
+f2
+
+tree_f_a.1 <- causalTree(f2, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
+                         split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = F, minbucket=2,
+                         xval = 5, cp = 0.0004, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
+
+rpart.plot(tree_f_a.1)
+summary(tree_f_a.1)
+
+tree_f_a.1$cptable
+
+opcp <- tree_f_a.1$cptable[,1][which.min(tree_f_a$cptable[,3])] #BADS example minimizes cross validation error >> no results. If rel error is minimized, the results seem more logical.
+opfit <- prune(tree_f_a, cp=opcp)
+rpart.plot(opfit) ## this procedure always gives only one node for regression >> nonsense
+
+
+pred_cT_f_a <- predict(object = tree_f_a, newdata = testData_f_a2)
+# The predictions differentiate between the treatment and control condition
+# pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
+# pr.y1_ct0 gives an estimate for a person to convert when in the control group
+head(pred_cT_f_a) 
+summary(pred_cT_f_a)
+
+# Our goal is to identify the people for whom the treatment will lead to a large increase 
+# in conversion probability, i.e. where the difference between the treatment prob. and the
+# control prob. is positive and high
+preds_f_a[["CausalTree"]] <- pred_cT_f_a[, 1] - pred_cT_f_a[, 2]
+# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
+summary(pred_mens[["CausalTree"]])
+head(pred_mens)
+
+
+# UPLIFT RF --------------------------------------------------------
+# str(trainData_mens)
+# str(trainData_womens)
+# table(trainData$z_var2)
+# table(testData$z_var2)
+
+f3 <- as.formula(paste("converted ~", paste(n[!n %in% c("controlGroup","converted","checkoutAmount","epochSecond","trackerKey","campaignId","label","campaignUnit","campaignTags")], collapse = " + ")))
+f3
+
+upliftRF_f_a2 <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+                          data = trainData_mens,
+                          mtry = 5,
+                          ntree = 300,
+                          split_method = "KL",
+                          minsplit = 50,
+                          verbose = TRUE)
+summary(upliftRF_men)
+### ONLY WORKS WITH BINARY TARGET
+
+
+# Note that the summary() includes the raw variable importance values. More options are available for function varImportance().
+varImportance(upliftRF_men, plotit = FALSE, normalize = TRUE)
+
+# Predictions for fitted Uplift RF model
+pred_mens <- list()
+pred_upliftRF_mens <- predict(object = upliftRF_men, newdata = testData_mens)
+# The predictions differentiate between the treatment and control condition
+# pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
+# pr.y1_ct1 gives an estimate for a person to convert when in the control group
+head(pred_upliftRF_mens) 
+summary(pred_upliftRF_mens) 
+
+
+# Our goal is to identify the people for whom the treatment will lead to a large increase 
+# in conversion probability, i.e. where the difference between the treatment prob. and the
+# control prob. is positive and high
+pred_mens[["upliftRF"]] <- pred_upliftRF_mens[, 1] - pred_upliftRF_mens[, 2]
+# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
+summary(pred_mens[["upliftRF"]])
+head(pred_mens)
+
+
+
+
+
+
+
+
+
+# TWO MODEL APPROACH (REGRESSION AND DECISION TREES) ---------------------------------------------------------------
+
+#### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
+#### MIGHT VERY WELL BE VERY WRONG!
+
+indx <- data.frame(lapply(trainData_f_a2, function(x) any(is.na(x))))
+names(indx)
+names(indx[,])
+indx
+#names of columns that contain TRUE
+
+f
+str(trainData_f_a2)
+summary(trainData_f_a2)
+
+data_treat=trainData_f_a2[trainData_f_a2$controlGroup==0,]
+data_control=trainData_f_a2[trainData_f_a2$controlGroup==1,]
+
+debug_contr_error(data_treat)
+
+glm_f_a_treat <- glm(f,family = gaussian, data=trainData_f_a2[trainData_f_a2$controlGroup==1,], na.action=na.pass)
+glm_f_a_contr <- glm(f, family = gaussian, data=trainData_f_a2[trainData_f_a2$controlGroup==1,], na.action=na.pass)
+
+summary(glm_f_a_treat)
+summary(glm_f_a_contr)
+
+library(rpart)
+rpart_contr = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=control, cp=0.0017, xval=10, model=TRUE)
+prp(rpart)
+summary(rpart)
+
+rpart_men = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=trainData_mens[trainData_mens$treatment==1,], cp=0.0017, xval=10, model=TRUE)
+prp(rpart_men)
+summary(rpart_men)
+
+
+
+
+
+
+
+
+# Performance Assessment for Uplift Models  ---------------------------------------------
+
+# Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
+
+treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
+treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],               "effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
+
+head(treatment_effect_groups, 10)
+
+# We cannot calculate the true treatment effect per person, but per group
+treatment_effect_groups$Decile <- cut(treatment_effect_groups$effect_estimate, breaks = 10, labels=FALSE)
+head(treatment_effect_groups)
+tail(treatment_effect_groups, 4)
+
+treatment_groups <- aggregate(treatment_effect_groups[,c("Conversion","effect_estimate")], 
+                              by=list("Decile"=treatment_effect_groups$Decile, "Treatment"=treatment_effect_groups$Treatment), 
+                              FUN=mean)
+# Conversion of customer without a treatment/coupon ranked by prediction
+{plot(treatment_groups$Conversion[10:1], type='l')
+  # Conversion of customer with a treatment/coupon ranked by prediction
+  lines(treatment_groups$Conversion[20:11], type='l', col="red")}
+## -> The uplift is the area between the curves
+treatment <- treatment_groups$Conversion[20:11] - treatment_groups$Conversion[10:1]
+
+# {uplift} has a function to calculate the Qini coefficient
+# Argument direction specifies whether we aim to maximize (P_treatment - P_control) or (P_control - P_treatment), or in other words
+# whether we aim for a high (purchase) probability or low (churn) probability
+
+perf_upliftRF <- uplift::performance(pr.y1_ct1 = pred_upliftRF[, 1], pr.y1_ct0 = pred_upliftRF[, 2], 
+                                     # with/without treatment prob.
+                                     y = testData$Conversion, ct = testData$Treatment, # outcome and treatment indicators
+                                     direction = 1, # maximize (1) or minimize (2) the difference? 
+                                     groups = 10)
+
+perf_upliftRF
+# Plot uplift random forest performance
+plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
+plot(treatment, col='red')
+
+# The Qini coefficient (derived from the Gini coefficient to measure the deviation from an equal distribution) is 
+# defined as the area between the incremental gains curve of the model and the area under the diagonal resulting from random targeting
+# in relation to the percentage of the population targeted.
+Qini_upliftRF <- qini(perf_upliftRF, plotit = TRUE) 
+
+Qini <- list()
+Qini[["upliftRF"]] <- Qini_upliftRF$Qini
+# The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here. 
