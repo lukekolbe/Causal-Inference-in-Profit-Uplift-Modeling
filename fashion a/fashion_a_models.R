@@ -26,7 +26,7 @@ f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "camp
                                                             "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount")], collapse = " + ")))
 
 
-tree_f_a3 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
+tree_f_a1 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
                         split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = T, minbucket=2,
                         xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 #cp = 0.0002 has decent size
