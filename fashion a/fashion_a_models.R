@@ -6,6 +6,8 @@
 # install_github("saberpowers/causalLearning")
 # install.packages("tools4uplift")
 
+
+
 library(devtools)
 library(causalTree)
 library(caret)
@@ -40,10 +42,10 @@ tree_f_a$cptable #### MODELING ON CHECKOUT AMOUNT GIVES NO GOOD RESULTS! the cro
 
 f2 <- as.formula(paste("label ~", paste(n[!n %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount",
                                                     "epochSecond","label","ViewedBefore.cart.", 
-                                                    "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount")], collapse = " + ")))
+                                                    "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount", "treatment")], collapse = " + ")))
 f2
 
-tree_f_a.1 <- causalTree(f2, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
+tree_f_a.1 <- causalTree(f2, data = trainData_f_a2, treatment = treatment,
                          split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = F, minbucket=2,
                          xval = 5, cp = 0.0004, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 
@@ -127,11 +129,13 @@ head(pred_mens)
 #### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
 #### MIGHT VERY WELL BE VERY WRONG!
 
-indx <- data.frame(lapply(trainData_f_a2, function(x) any(is.na(x))))
+indx <- t(data.frame(lapply(trainData_f_a2, function(x) any(is.na(x)))))
 names(indx)
 names(indx[,])
-indx
+indx[indx[,1=="TRUE"],]
 #names of columns that contain TRUE
+
+test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
 
 f
 str(trainData_f_a2)
@@ -162,6 +166,32 @@ summary(rpart_men)
 
 
 
+
+# Causal Boosting ---------------------------------------------------------
+
+library("parallelMap")
+parallelStartSocket(3) #level = "causalLearning::causalBoosting"
+library("parallel")
+RNGkind("L'Ecuyer-CMRG")
+clusterSetRNGStream(iseed = 1234567)
+
+indx <- t(data.frame(lapply(trainData_f_a2, function(x) any(is.na(x)))))
+names(indx)
+names(indx[,])
+indx[indx[,1=="TRUE"],]
+#names of columns that contain TRUE
+
+test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
+
+
+
+causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
+                                                                                      "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
+                                          tx=test$treatment, 
+                                          y=test$checkoutAmount)
+
+
+parallelStop()
 
 
 # Performance Assessment for Uplift Models  ---------------------------------------------

@@ -45,8 +45,16 @@ ttest_a
 
 names(f_a)
 
+table(f_a$campaignMov)
+table(f_a$campaignMov)
 
-f_a <- f_a[,c(4:9,63,10:62,64:93,1,2,3)] # sorting new for better visibility of important columns
+
+table(f_a$checkoutAmount>=105,f_a$controlGroup)
+
+f_a$treatment <- numeric(nrow(f_a))
+f_a$treatment <- ifelse(f_a$controlGroup==1, 0, 1)
+
+f_a <- f_a[,c(4:9,94,63,10:62,64:93,1,2,3)] # sorting new for better visibility of important columns
 f_a <- f_a[,-which(names(f_a) %in% c("campaignUnit", "campaignTags", "trackerKey", "campaignId"))] #removing empty/useless factors to avoid issues with glm
 
 f_a_5 <- f_a[f_a$campaignValue==500,] #separating the different treatment values
