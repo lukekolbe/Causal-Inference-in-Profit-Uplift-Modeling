@@ -12,6 +12,10 @@ library(caret)
 library(grf)
 library("uplift")
 library(causalLearning)
+library(tidyverse)
+library(tools4uplift)
+library(causalLearning)
+library(causalTree)
 
 
 
@@ -22,6 +26,7 @@ hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudD
 setwd("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data")
 hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
+hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\fashion\\FashionA.csv", sep=",")
 
 str(hllstrm)
 summary(hllstrm)
@@ -98,7 +103,7 @@ table(control$spend>0, control$segment)
       # summary(trainData[,c("Conversion","Treatment")])
       # summary( testData[,c("Conversion","Treatment")])
 
-
+train_indices_all <- list()
 train_indices_mens <- list()
 train_indices_womens <- list()
 
@@ -109,6 +114,7 @@ xtabs(~conversion+treatment, mens)
 xtabs(~conversion+treatment, womens)
 xtabs(~conversion+treatment, control)
 
+sample_size_all <- as.numeric(xtabs(~conversion+treatment, hllstrm))
 sample_size_mens <- as.numeric(xtabs(~conversion+treatment, mens))
 sample_size_womens <- as.numeric(xtabs(~conversion+treatment, womens))
 
@@ -117,6 +123,12 @@ sample_size_womens <- as.numeric(xtabs(~conversion+treatment, womens))
 #                                             hllstrm$treatment == combinations$Treatment[i])
 #                                     , size = round(0.75*sample_size[i]), replace=FALSE) 
 # } 
+
+for(i in 1:4){
+  train_indices_all[[i]] <- sample(which(hllstrm$conversion == combinations$Conversion[i] &
+                                            hllstrm$treatment == combinations$Treatment[i])
+                                    , size = round(0.25*sample_size_all[i]), replace=FALSE) 
+} 
 
 for(i in 1:4){
   train_indices_mens[[i]] <- sample(which(mens$conversion == combinations$Conversion[i] &
@@ -132,11 +144,15 @@ for(i in 1:4){
 
 # trainIndex <- c(train_indices, recursive=TRUE)
 
+trainIndex_all <- c(train_indices_all, recursive=TRUE)
 trainIndex_mens <- c(train_indices_mens, recursive=TRUE)
 trainIndex_womens <- c(train_indices_womens, recursive=TRUE)
 
 # trainData <- hllstrm[trainIndex,]
 # testData  <- hllstrm[-trainIndex,]
+
+trainData_all <- hllstrm[-trainIndex_all,]
+testData_all  <- hllstrm[trainIndex_all,]
 
 trainData_mens <- mens[-trainIndex_mens,]
 testData_mens  <- mens[trainIndex_mens,]
@@ -146,6 +162,8 @@ testData_womens  <- womens[trainIndex_womens,]
 
 table(trainData_mens$spend>0, trainData_mens$segment)
 table(trainData_womens$spend>0, trainData_womens$segment)
+table(trainData_all$spend>0, trainData_all$segment)
+
 
 summary(hllstrm[,c("conversion","treatment")])
 summary(testData_mens[,c("conversion","treatment")])
@@ -164,7 +182,9 @@ experiment
 # The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
 # which is plausible because of the random sampling
 mean(as.numeric(hllstrm$conversion[hllstrm$treatment==1])) - mean(as.numeric(hllstrm$conversion[hllstrm$treatment==0]))
-mean(hllstrm$spend[hllstrm$treatment==1]) - mean(hllstrm$spend[hllstrm$treatment==0])
+mean(hllstrm$spend[hllstrm$treatment==1]) - mean(hllstrm$spend[hllstrm$treatment==0]) 
+mean(mens$spend[mens$treatment==1]) - mean(mens$spend[mens$treatment==0]) # men have a higher average treatment effect
+mean(womens$spend[womens$treatment==1]) - mean(womens$spend[womens$treatment==0]) # women have a lower average treatment effect than men or the average
 
 # or alternatively:
 (experiment[2,2]/sum(experiment[2,]) ) - (experiment[1,2]/sum(experiment[1,]) )
@@ -202,15 +222,23 @@ str(trainData_womens)
 library(causalTree)
 tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_mens, treatment = trainData_mens$treatment,
                    split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F,
-                   xval = 5, cp = 0.01, minsize = 30, propensity = 0.5)
+                   xval = 10, cp = 0.0002, minsize = 30, propensity = 0.5)
 
-# tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, 
-#                        data = trainData_mens, treatment = trainData_mens$treatment,
-#                        split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F, 
-#                        cp = 0, xval = 5 , minsize = 20, propensity = 0.5)
+tree_men <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie,
+                       data = trainData_mens, treatment = trainData_mens$treatment,
+                       split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F,
+                       cp = 0, xval = 5 , minsize = 20, propensity = 0.5)
 
 rpart.plot(tree_men)
 summary(tree_men)
+
+tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_all, treatment = trainData_all$treatment,
+                       split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F,
+                       xval = 10, cp = 0.0001, minsize = 50, propensity = 0.66667)
+tree_all$cptable
+rpart.plot(tree_all)
+summary(tree_all)
+
 
 opcp <- tree_men$cptable[,1][which.min(tree_men$cptable[,4])]
 opfit <- prune(tree_men, cp=opcp)
