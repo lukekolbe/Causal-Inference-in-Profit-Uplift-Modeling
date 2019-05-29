@@ -18,6 +18,7 @@ library(tidyverse)
 library(BART)
 
 getwd()
+setwd("~/Desktop/apa_data/")
 bt <- read.csv("BooksAndToys.csv", sep=",")
 
 str(bt)
@@ -47,6 +48,8 @@ with(bt, table(checkoutDiscount>0, controlGroup))
 for(i in 1:ncol(bt)){
   bt[is.na(bt[,i]), i] <- mean(bt[,i], na.rm = TRUE)
 }
+# na finden 
+colMeans(is.na(bt))
 #mean imputation for NaNs
 #for(i in 1:ncol(bt)){
  # bt[is.nan(bt[,i]), i] <- mean(bt[,i], nan.rm = TRUE)
@@ -239,20 +242,20 @@ summary(pred[["upliftRF"]])
 
 # GRF -----------------------------------------------------------------
 library("grf")
-X <- bt[, !(colnames(bt) %in% c("converted","treatment"))]
+X <- bt[, !(colnames(bt) %in% c("checkoutAmount","treatment"))]
 str(X)
-Y <- bt$converted
+Y <- bt$checkoutAmount
 W <- bt$treatment
 
 # Note that there are several ways to specify/ calculate the distribution of the test statistic of the independence test. In this case,
 # we use Monte Carlo estimation (via approximate) with 500 repetitions.
 cf <- causal_forest(X = X[trainIndex,], Y = Y[trainIndex], W=W[trainIndex],
                     num.trees = 300, 
-                    mtry = 6,
+                    mtry = 10,
                     sample.fraction = 0.5,
                     min.node.size = 50,
                     honesty = TRUE, honesty.fraction=NULL,
-                    ci.group.size=2, compute.oob.predictions = TRUE)
+                    ci.group.size=2, compute.oob.predictions = TRUE, seed = 12)
 
 # Predictions from a fitted CF model
 pred_cf <- predict(cf, newdata = X[-trainIndex,], estimate.variance=FALSE)
@@ -327,4 +330,9 @@ summary(trainData[,c("converted","treatment")])
 summary( testData[,c("converted","treatment")])
 
 
-
+fb <- read.csv("FashionB.csv", sep=",")
+NA_Columns = colMeans(is.na(fb))
+NA_Columns
+colnames_fb=colnames(fb)
+na_columns_fb<- data.frame("Column"=colnames_fb, "na_percentage" = NA_Columns)
+write.csv(na_columns_fb, file = "NA_Columns_Fashion_B.csv", row.names = FALSE)
