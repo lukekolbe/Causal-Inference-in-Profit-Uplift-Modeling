@@ -38,6 +38,8 @@ tree_f_a1 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$tre
                         xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 #cp = 0.0002 has decent size
 
+saveRDS(tree_f_a1, file = "tree_f_a1.rds")
+
 rpart.plot(tree_f_a)
 summary(tree_f_a)
 

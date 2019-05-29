@@ -1,5 +1,10 @@
 install.packages("Matrix")
 install.packages("rpart")
+install.packages("survival")
+install.packages("cluster")
+install.packages("doParallel")
+install.packages("BART")
+
 
 install.packages("grf")
 install.packages("uplift")
@@ -28,6 +33,8 @@ library(tools4uplift)
 library(installr)
 library(causalTree)
 library(causalLearning)
+library("doParallel")
+
 
 
 # https://github.com/rstudio/rstudio/issues/3563
