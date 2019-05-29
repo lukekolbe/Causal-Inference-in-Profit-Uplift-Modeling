@@ -23,15 +23,22 @@ library(tools4uplift)
 str(trainData_f_a2)
 
 n <- names(trainData_f_a2)
-f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount",
-                                                            "epochSecond","label","ViewedBefore.cart.", 
-                                                            "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount")], collapse = " + ")))
+f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "campaignValue",
+                                                            "checkoutDiscount","controlGroup",
+                                                            "treatment","converted",
+                                                            "checkoutAmount","epochSecond",
+                                                            "label","ViewedBefore.cart.", 
+                                                            "TabSwitchPer.product.", "TimeToFirst.cart.", 
+                                                            "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch",
+                                                            "TabSwitchOnLastScreenCount")], collapse = " + ")))
 
 
-tree_f_a1 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$controlGroup==0,
+tree_f_a1 <- causalTree(f, data = trainData_f_a2, treatment = trainData_f_a2$treatment,
                         split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = T, minbucket=2,
                         xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 #cp = 0.0002 has decent size
+
+saveRDS(tree_f_a1, file = "tree_f_a1.rds")
 
 rpart.plot(tree_f_a)
 summary(tree_f_a)
@@ -117,56 +124,6 @@ summary(pred_mens[["upliftRF"]])
 head(pred_mens)
 
 
-
-
-
-
-
-
-
-# TWO MODEL APPROACH (REGRESSION AND DECISION TREES) ---------------------------------------------------------------
-
-#### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
-#### MIGHT VERY WELL BE VERY WRONG!
-
-indx <- t(data.frame(lapply(trainData_f_a2, function(x) any(is.na(x)))))
-names(indx)
-names(indx[,])
-indx[indx[,1=="TRUE"],]
-#names of columns that contain TRUE
-
-test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
-
-f
-str(trainData_f_a2)
-summary(trainData_f_a2)
-
-data_treat=trainData_f_a2[trainData_f_a2$controlGroup==0,]
-data_control=trainData_f_a2[trainData_f_a2$controlGroup==1,]
-
-debug_contr_error(data_treat)
-
-glm_f_a_treat <- glm(f,family = gaussian, data=trainData_f_a2[trainData_f_a2$controlGroup==1,], na.action=na.pass)
-glm_f_a_contr <- glm(f, family = gaussian, data=trainData_f_a2[trainData_f_a2$controlGroup==1,], na.action=na.pass)
-
-summary(glm_f_a_treat)
-summary(glm_f_a_contr)
-
-library(rpart)
-rpart_contr = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=control, cp=0.0017, xval=10, model=TRUE)
-prp(rpart)
-summary(rpart)
-
-rpart_men = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=trainData_mens[trainData_mens$treatment==1,], cp=0.0017, xval=10, model=TRUE)
-prp(rpart_men)
-summary(rpart_men)
-
-
-
-
-
-
-
 # Causal Boosting ---------------------------------------------------------
 
 library("parallelMap")
@@ -199,7 +156,7 @@ parallelStop()
 # Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
 
 treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
-treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],               "effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
+treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],"effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
 
 head(treatment_effect_groups, 10)
 
