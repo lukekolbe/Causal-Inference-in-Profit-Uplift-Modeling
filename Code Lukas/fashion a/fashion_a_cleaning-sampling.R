@@ -71,6 +71,9 @@ summary(aov(campaignValue  ~ controlGroup, data=f_a))
 table(f_a$checkoutDiscount) #no checkout discounts in the data?!
 prop.table(table(f_a$checkoutAmount>0, f_a$controlGroup)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
 
+
+# CLEANING ----------------------------------------------------------------
+
 # Drop columns with no information
 f_a <- f_a[,-which(names(f_a) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
                                      "TabSwitchPer.product.", "TimeToFirst.cart.","TabSwitchOnLastScreenCount","TotalTabSwitchCount"))] 
@@ -164,20 +167,23 @@ for(i in 1:4){
                                     , size = round(0.25*sample_size_f_a2[i]), replace=FALSE) 
 } 
 
-
+#### WHY IS THE ATE SO DIFFERENT BETWEEN TEST AND TRAIN DATA?! LOOKS LIKE AN ERROR IN STRATIFICATION!!!!
 
 trainIndex_f_a2 <- c(train_indices_f_a2, recursive=TRUE)
 
 trainData_f_a2 <- trainData_small[-trainIndex_f_a2,] # temporarily the train data is only a small partition!
 testData_f_a2  <- trainData_small[trainIndex_f_a2,]
 
-table(trainData_f_a2$checkoutAmount>0, trainData_f_a2$controlGroup)
+table(trainData_f_a2$checkoutAmount>0, trainData_f_a2$treatment)
 
-summary(aov(checkoutAmount  ~ controlGroup, data=trainData_f_a2)) # checking statistical significance of the differences in checkout amount
-t.test(checkoutAmount ~ controlGroup, data=trainData_f_a2) # checking statistical significance of the differences in checkout amount
+summary(aov(checkoutAmount  ~ treatment, data=trainData_f_a2)) # checking statistical significance of the differences in checkout amount
+t.test(checkoutAmount ~ treatment, data=trainData_f_a2) # checking statistical significance of the differences in checkout amount
 
-aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[2,2] 
-aggregate(checkoutAmount ~ controlGroup, data=trainData_f_a2, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=trainData_f_a2, mean)[2,2] 
+aggregate(checkoutAmount ~ treatment, data=f_a, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=trainData_f_a2, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_f_a2, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[1,2] 
+
 #total population uplift is slightly lower than in the complete sample
 
 

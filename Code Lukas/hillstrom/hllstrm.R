@@ -17,7 +17,7 @@ library(tools4uplift)
 library(causalLearning)
 library(causalTree)
 
-
+set.seed(101010)
 
 getwd()
 setwd("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/HillstrÃ¶m Data/")
@@ -45,9 +45,9 @@ hllstrm$treatment <- ifelse(hllstrm$segment=="No E-Mail", 0, 1)
 
 ### stupid dummyfication of factors for causalboosting
 
-for(level in unique(hllstrm$history_segment)){
-  hllstrm[paste("history_segment", level, sep = "_")] <- ifelse(hllstrm$history_segment == level, 1, 0)
-}
+# for(level in unique(hllstrm$history_segment)){
+#   hllstrm[paste("history_segment", level, sep = "_")] <- ifelse(hllstrm$history_segment == level, 1, 0)
+# }
 
 for(level in unique(hllstrm$zip_code)){
   hllstrm[paste("zip_code", level, sep = "_")] <- ifelse(hllstrm$zip_code == level, 1, 0)
@@ -57,9 +57,9 @@ for(level in unique(hllstrm$channel)){
   hllstrm[paste("channel", level, sep = "_")] <- ifelse(hllstrm$channel == level, 1, 0)
 }
 
-for(level in unique(hllstrm$segment)){
-  hllstrm[paste("segment", level, sep = "_")] <- ifelse(hllstrm$segment == level, 1, 0)
-}
+# for(level in unique(hllstrm$segment)){
+#   hllstrm[paste("segment", level, sep = "_")] <- ifelse(hllstrm$segment == level, 1, 0)
+# }
 
 # TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
 
@@ -178,15 +178,14 @@ testData_all  <- hllstrm[trainIndex_all,]
 # trainData_womens <- womens[-trainIndex_womens,]
 # testData_womens  <- womens[trainIndex_womens,]
 
-table(trainData_mens$spend>0, trainData_mens$segment)
-table(trainData_womens$spend>0, trainData_womens$segment)
+# table(trainData_mens$spend>0, trainData_mens$segment)
+# table(trainData_womens$spend>0, trainData_womens$segment)
 table(trainData_all$spend>0, trainData_all$segment)
 
 
 summary(hllstrm[,c("conversion","treatment")])
-summary(testData_mens[,c("conversion","treatment")])
-summary(trainData_mens[,c("conversion","treatment")])
-summary(testData_mens[,c("conversion","treatment")])
+summary(testData_all[,c("conversion","treatment")])
+summary(trainData_all[,c("conversion","treatment")])
 
 #cleaning the mens and womens set of any control group >> necessary for two-model
 # mens <- mens[mens$segment=="Mens E-Mail",]
@@ -231,6 +230,8 @@ cb$overall
 # Causal Tree ALL ------------------------------------------------------
 
 library(causalTree)
+
+names(trainData_all)
 
 tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_all, treatment = trainData_all$treatment,
                        split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F,
@@ -327,10 +328,14 @@ cf_hillstrom <- causal_forest(
 )
 
 summary(cf_hillstrom)
+cf_hillstrom$tunable.params
 
 cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
                               newdata=testData_all[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
+
+saveRDS(cf_hillstrom, "cf_hillstrom.RDS")
+
 
 # UPLIFT RF  --------------------------------------------------------
 # str(trainData_mens)
@@ -349,7 +354,10 @@ upliftRF_hllstrm <- upliftRF(conversion ~ trt(treatment) +.,
                              minsplit = 50,
                              verbose = TRUE)
 
-summary(upliftRF_men)
+summary(upliftRF_hllstrm)
+
+saveRDS(upliftRF_hllstrm, "upliftRF_hllstrm.RDS")
+
 ### ONLY WORKS WITH BINARY TARGET
 
 
@@ -424,12 +432,16 @@ summary(rpart_men)
 
 
 str(trainData_all)
-trainData_all[,-which(names(trainData_all) %in% c("segment","history_segment","zip_code","channel"))]
+names(trainData_all[,-which(names(trainData_all) %in% c("segment","history_segment","zip_code","channel"))])
+names(trainData_all)
 
+prop.table(table(trainData_all$treatment))
 
 cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
                                      tx=trainData_all$treatment, 
-                                     y=trainData_all$spend)
+                                     y=trainData_all$spend,
+                                     num.trees=500,
+                                     eps=0.3)
 
 saveRDS(cb_hillstrom, "cb_hillstrom.rds")
 cb_hillstrom <- readRDS("cb_hillstrom.rds")
