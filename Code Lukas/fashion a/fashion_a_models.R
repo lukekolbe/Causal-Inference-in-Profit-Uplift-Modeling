@@ -18,6 +18,25 @@ library(tidyverse)
 library(tools4uplift)
 
 
+# CARET SMOTE SAMPLING TRYOUT ---------------------------------------------
+
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 10,
+                     verboseIter = FALSE,
+                     sampling = "smote")
+
+set.seed(42)
+model_rf_smote <- caret::train(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+                               data = trainData_mens,
+                               method = "glm",
+                               preProcess = c("scale", "center"),
+                               trControl = ctrl)
+
+
+
+
+
 # Causal Tree on checkoutAmount ------------------------------------------------------
 
 str(trainData_f_a2)
@@ -148,19 +167,19 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in 
                               newdata=testData_all[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
 
-# Causal Boosting ---------------------------------------------------------
+# Causal Boosting---------------------------------------------------------
 
-library("parallelMap")
-parallelStartSocket(3) #level = "causalLearning::causalBoosting"
-library("parallel")
-RNGkind("L'Ecuyer-CMRG")
-clusterSetRNGStream(iseed = 1234567)
+# library("parallelMap")
+# parallelStartSocket(3) #level = "causalLearning::causalBoosting"
+# library("parallel")
+# RNGkind("L'Ecuyer-CMRG")
+# clusterSetRNGStream(iseed = 1234567)
 
-indx <- t(data.frame(lapply(trainData_f_a2, function(x) any(is.na(x)))))
-names(indx)
-names(indx[,])
-indx[indx[,1=="TRUE"],]
-#names of columns that contain TRUE
+# indx <- t(data.frame(lapply(trainData_f_a2, function(x) any(is.na(x)))))
+# names(indx)
+# names(indx[,])
+# indx[indx[,1=="TRUE"],]
+#names of columns that contain is.na==TRUE
 
 test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
 
@@ -172,7 +191,7 @@ causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov",
                                           y=test$checkoutAmount)
 
 
-parallelStop()
+parallelStop() 
 
 
 # Performance Assessment for Uplift Models  ---------------------------------------------

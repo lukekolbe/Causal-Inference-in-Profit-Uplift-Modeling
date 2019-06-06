@@ -330,14 +330,14 @@ cf_hillstrom <- causal_forest(
 summary(cf_hillstrom)
 cf_hillstrom$tunable.params
 
-cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+cf_hillstrom_preds <- predict(object = cf_hillstrom,
                               newdata=testData_all[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
 
 saveRDS(cf_hillstrom, "cf_hillstrom.RDS")
 
 
-# UPLIFT RF  --------------------------------------------------------
+# UPLIFT RF (used for variable importance) --------------------------------------------------------
 # str(trainData_mens)
 # str(trainData_womens)
 # table(trainData$z_var2)
@@ -357,16 +357,26 @@ upliftRF_hllstrm <- upliftRF(conversion ~ trt(treatment) +.,
 summary(upliftRF_hllstrm)
 
 saveRDS(upliftRF_hllstrm, "upliftRF_hllstrm.RDS")
+upliftRF_hllstrm <- readRDS("upliftRF_hllstrm.RDS")
+
+varImportance(upliftRF_hllstrm, plotit = FALSE, normalize = TRUE)
+
+pred_all <- list()
+pred_upliftRF <- predict(object = upliftRF_hllstrm, newdata = testData_all)
+head(upliftRF_hllstrm)
+
+pred_womens[["upliftRF"]] <- upliftRF_hllstrm[, 1] - upliftRF_hllstrm[, 2]
+summary(pred_womens[["upliftRF"]])
 
 ### ONLY WORKS WITH BINARY TARGET
 
 
 # Note that the summary() includes the raw variable importance values. More options are available for function varImportance().
-varImportance(upliftRF_men, plotit = FALSE, normalize = TRUE)
+varImportance(upliftRF_hllstrm, plotit = FALSE, normalize = TRUE)
 
 # Predictions for fitted Uplift RF model
 pred_mens <- list()
-pred_upliftRF_mens <- predict(object = upliftRF_men, newdata = testData_mens)
+pred_upliftRF_mens <- predict(object = upliftRF_hllstrm, newdata = testData_mens)
 # The predictions differentiate between the treatment and control condition
 # pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
 # pr.y1_ct1 gives an estimate for a person to convert when in the control group
@@ -385,14 +395,14 @@ head(pred_mens)
 
 # UPLIFT-RF WOMENS --------------------------------------------------------
 
-upliftRF_women <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
-                           data = trainData_womens,
-                           mtry = 5,
-                           ntree = 300,
-                           split_method = "KL",
-                           minsplit = 50,
-                           verbose = TRUE)
-summary(upliftRF_women)
+# upliftRF_women <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
+#                            data = trainData_womens,
+#                            mtry = 5,
+#                            ntree = 300,
+#                            split_method = "KL",
+#                            minsplit = 50,
+#                            verbose = TRUE)
+# summary(upliftRF_women)
 varImportance(upliftRF_women, plotit = FALSE, normalize = TRUE)
 
 pred_womens <- list()
