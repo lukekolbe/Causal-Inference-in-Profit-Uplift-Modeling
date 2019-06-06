@@ -124,6 +124,30 @@ summary(pred_mens[["upliftRF"]])
 head(pred_mens)
 
 
+
+# CausalForest ------------------------------------------------------------
+
+names(trainData_all)
+str(trainData_all)
+
+
+cf_hillstrom <- causal_forest(
+  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
+  Y = trainData_all$spend,
+  W = trainData_all$treatment,
+  num.trees = 1000,
+  honesty = TRUE,
+  honesty.fraction = NULL,
+  tune.parameters=TRUE,
+  seed = 1839
+)
+
+summary(cf_hillstrom)
+
+cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
+                              estimate.variance = TRUE)
+
 # Causal Boosting ---------------------------------------------------------
 
 library("parallelMap")
