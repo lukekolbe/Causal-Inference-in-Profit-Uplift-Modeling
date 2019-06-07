@@ -5,6 +5,10 @@
 # install_github("susanathey/causalTree")
 # install_github("saberpowers/causalLearning")
 # install.packages("tools4uplift")
+install.packages("DMwR")
+install.packages("mlbench")
+install.packages("randomForest")
+
 
 library(devtools)
 library(causalTree)
@@ -14,9 +18,12 @@ library("uplift")
 library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
+library("DMwR") #for SMOTE
+library(mlbench)
+library(randomForest)
 
 
-set.seed(666)
+set.seed(111)
 
 getwd()
 f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
@@ -113,24 +120,60 @@ for(i in 1:ncol(f_a)){
 f_a$treatment = numeric(nrow(f_a))
 f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
 
-library(lubridate)
-# create 12-factor variable (months) for seasonality, maybe even seasons (4) out of epochSecond
+# library(lubridate)
+# # create 12-factor variable (months) for seasonality, maybe even seasons (4) out of epochSecond
+# 
+# f_a$month=as.factor(month(as_datetime(f_a$epochSecond)))
+# table(f_a$month)
+# str(f_a$month)
 
-f_a$month=as.factor(month(as_datetime(f_a$epochSecond)))
-table(f_a$month)
-str(f_a$month)
 
-# Data set rearrangement 
-#f_a <- f_a[,c(4:9,94,63,10:62,64:93,1,2,3)] # sorting new for better visibility of important columns
-
-# Dropping further columns, we do not need anymore
-f_a <- f_a[,-which(names(f_a) %in% c("controlGroup", "epochSecond"))] 
 
 # Seperating the different treatments --> Later test with 2-Model-Approach if treatment effects are higher for different treatments
 # f_a_5 <- f_a[f_a$campaignValue==500,] 
 # f_a_0 <- f_a[f_a$campaignValue==0,]
 f_a <- f_a[f_a$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
 
+# Dropping further columns, we do not need anymore
+f_a <- f_a[,-which(names(f_a) %in% c("controlGroup", "epochSecond","campaignMov","campaignValue","label", "NormalizedCartSum"))] 
+
+
+# correlation test and removal of highly correlated variables ------------------
+
+
+# find and reduce attributes that are highly corrected (ideally >0.75)
+
+correlationMatrix <- cor(f_a[,-which(names(f_a) %in% c("converted", "treatment","checkoutAmount"))]) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
+# summarize the correlation matrix
+#print(correlationMatrix)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE)
+
+f_a <- f_a[,-which(names(f_a) %in% highlyCorrelated)]
+
+
+
+# FEATURE SELECTION -------------------------------------------------------
+#http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
+#https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+# load the data
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
+subsets <- c(1:5, 10, 15, 20, 25)
+
+# run the RFE algorithm
+results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control, maximize=TRUE)
+# summarize the results
+print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
 
 # 1ST ROUND SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
 
@@ -144,9 +187,8 @@ sample_size_f_a <- as.numeric(xtabs(~converted+treatment, f_a))
 for(i in 1:4){
   train_indices_f_a[[i]] <- sample(which(f_a$converted == combinations$Conversion[i] &
                                            f_a$treatment == combinations$Treatment[i])
-                                   , size = round(0.4*sample_size_f_a[i]), replace=FALSE) 
+                                   , size = round(0.15*sample_size_f_a[i]), replace=FALSE) 
 } 
-
 
 
 trainIndex_f_a <- c(train_indices_f_a, recursive=TRUE)
@@ -164,10 +206,9 @@ sample_size_f_a2 <- as.numeric(xtabs(~converted+treatment, trainData_small))
 for(i in 1:4){
   train_indices_f_a2[[i]] <- sample(which(trainData_small$converted == combinations$Conversion[i] &
                                             trainData_small$treatment == combinations$Treatment[i])
-                                    , size = round(0.25*sample_size_f_a2[i]), replace=FALSE) 
+                                    , size = round(0.5*sample_size_f_a2[i]), replace=FALSE) 
 } 
 
-#### WHY IS THE ATE SO DIFFERENT BETWEEN TEST AND TRAIN DATA?! LOOKS LIKE AN ERROR IN STRATIFICATION!!!!
 
 trainIndex_f_a2 <- c(train_indices_f_a2, recursive=TRUE)
 
@@ -176,9 +217,14 @@ testData_f_a2  <- trainData_small[trainIndex_f_a2,]
 
 table(trainData_f_a2$checkoutAmount>0, trainData_f_a2$treatment)
 
+prop.table(table(trainData_small$converted))
+prop.table(table(trainData_f_a2$converted))
+prop.table(table(f_a$converted))
+
 summary(aov(checkoutAmount  ~ treatment, data=trainData_f_a2)) # checking statistical significance of the differences in checkout amount
 t.test(checkoutAmount ~ treatment, data=trainData_f_a2) # checking statistical significance of the differences in checkout amount
 
+#### WHY IS THE ATE SO DIFFERENT BETWEEN TEST AND TRAIN DATA?! LOOKS LIKE AN ERROR IN STRATIFICATION!!!!
 aggregate(checkoutAmount ~ treatment, data=f_a, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a, mean)[1,2] 
 aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[1,2] 
 aggregate(checkoutAmount ~ treatment, data=trainData_f_a2, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_f_a2, mean)[1,2] 
@@ -219,7 +265,7 @@ experiment <- table(list("Control" = trainData_f_a2$controlGroup, "Converted" = 
 experiment
 
 # The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
-                                  # (((which is plausible because of the random sampling)))
+# (((which is plausible because of the random sampling)))
 mean(as.numeric(trainData_f_a2$converted[trainData_f_a2$controlGroup==0])) - mean(as.numeric(trainData_f_a2$converted[trainData_f_a2$controlGroup==1]))
 mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==1])
 
@@ -227,7 +273,7 @@ mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(train
 (experiment[1,2]/sum(experiment[1,]) ) - (experiment[2,2]/sum(experiment[2,]) )
 
 
-  
+
 
 # DATA SAMPLE INVESTIGATION (DOES NOT WORK)-----------------------------------------------
 
@@ -237,23 +283,24 @@ mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(train
 # In randomized empirical experiments the treatment and control groups should be roughly similar (i.e. balanced) in their distributions of covariates.
 # Of course, we would expect the conversion rate to be different between the treatment and control group
 
-    # n <- names(f_a)
-    # f <- as.formula(paste("controlGroup ~", paste(n[!n %in% c("controlGroup","converted")], collapse = " + "))) # checkBalance() throws an error with the syntax (controlGroup ~.-converted), so I save the formula separately. doesn't help.
-    # f
-    # 
-    # cb <- checkBalance(f, data = trainData_f_a2, report = c("adj.means", "adj.mean.diffs", "p.values", "chisquare.test"))
-    # 
-    # # Balance properties of first ten covariates 
-    # # Be aware that the results are saved as a tensor or '3D matrix'.
-    # dim(cb$results)
-    # round(cb$results[,,], 2)
-    # # The function automatically computes a chi-squared test for the conditional independence of the covariates to the treatment variable
-    # cb$overall
+# n <- names(f_a)
+# f <- as.formula(paste("controlGroup ~", paste(n[!n %in% c("controlGroup","converted")], collapse = " + "))) # checkBalance() throws an error with the syntax (controlGroup ~.-converted), so I save the formula separately. doesn't help.
+# f
+# 
+# cb <- checkBalance(f, data = trainData_f_a2, report = c("adj.means", "adj.mean.diffs", "p.values", "chisquare.test"))
+# 
+# # Balance properties of first ten covariates 
+# # Be aware that the results are saved as a tensor or '3D matrix'.
+# dim(cb$results)
+# round(cb$results[,,], 2)
+# # The function automatically computes a chi-squared test for the conditional independence of the covariates to the treatment variable
+# cb$overall
 
-# CARET SMOTE SAMPLING TRYOUT ---------------------------------------------
 
-# ctrl <- trainControl(method = "repeatedcv", 
-#                      number = 10, 
+# SMOTE SAMPLING TRYOUT ---------------------------------------------
+
+# ctrl <- trainControl(method = "repeatedcv",
+#                      number = 10,
 #                      repeats = 10,
 #                      verboseIter = FALSE,
 #                      sampling = "smote")
@@ -264,4 +311,8 @@ mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(train
 #                                method = "glm",
 #                                preProcess = c("scale", "center"),
 #                                trControl = ctrl)
-# 
+
+
+test <- SMOTE()
+
+

@@ -18,23 +18,6 @@ library(tidyverse)
 library(tools4uplift)
 
 
-# CARET SMOTE SAMPLING TRYOUT ---------------------------------------------
-
-ctrl <- trainControl(method = "repeatedcv", 
-                     number = 10, 
-                     repeats = 10,
-                     verboseIter = FALSE,
-                     sampling = "smote")
-
-set.seed(42)
-model_rf_smote <- caret::train(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel,
-                               data = trainData_mens,
-                               method = "glm",
-                               preProcess = c("scale", "center"),
-                               trControl = ctrl)
-
-
-
 
 
 # Causal Tree on checkoutAmount ------------------------------------------------------
@@ -107,13 +90,31 @@ head(pred_mens)
 # table(trainData$z_var2)
 # table(testData$z_var2)
 
-f3 <- as.formula(paste("converted ~", paste(n[!n %in% c("controlGroup","converted","checkoutAmount","epochSecond","trackerKey","campaignId","label","campaignUnit","campaignTags")], collapse = " + ")))
+names(trainData_f_a2)
+
+trainData_all[,-which(names(trainData_all) %in% c("conversion","spend","treatment", "segment","history_segment","zip_code","channel"))]
+
+
+# upliftRF_hllstrm <- upliftRF(conversion ~ trt(treatment) +.,
+#                              data = trainData_all[,-which(names(trainData_all) %in% c("spend","segment","history_segment","zip_code","channel"))],
+#                              mtry = 6,
+#                              ntree = 1000,
+#                              split_method = "KL",
+#                              minsplit = 50,
+#                              verbose = TRUE)
+
+summary(upliftRF_hllstrm)
+
+
+n <- names(trainData_f_a2)
+
+f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
 f3
 
-upliftRF_f_a2 <- upliftRF(conversion ~ trt(treatment) +recency + history +history_segment + mens + womens + zip_code + newbie + channel,
-                          data = trainData_mens,
-                          mtry = 5,
-                          ntree = 300,
+upliftRF_f_a2 <- upliftRF(f3,
+                          data = trainData_f_a2,
+                          mtry = 10,
+                          ntree = 1000,
                           split_method = "KL",
                           minsplit = 50,
                           verbose = TRUE)
@@ -186,9 +187,9 @@ test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
 
 
 causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
-                                                                                      "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
-                                          tx=test$treatment, 
-                                          y=test$checkoutAmount)
+                                                                  "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
+                                  tx=test$treatment, 
+                                  y=test$checkoutAmount)
 
 
 parallelStop() 
