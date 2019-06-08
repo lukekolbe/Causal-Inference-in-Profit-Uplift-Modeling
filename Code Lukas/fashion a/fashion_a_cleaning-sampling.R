@@ -30,37 +30,6 @@ f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/
 #f_a <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
 f_a <- read.csv("H:\\Applied Predictive Analytics\\Data\\fashion\\FashionA.csv", sep=",")
 
-table(f_a$controlGroup)
-str(f_a)
-
-prop.table(table(sapply(f_a, is.na)))
-
-
-table(f_a$campaignMov, f_a$campaignValue) # minimum order value is different depending on campaignValue (but consistent within value-segments)
-table(f_a$campaignValue) #campaign value mostly 2000 CURRENCY UNITS, except for ~66700
-
-with(f_a, prop.table(table(campaignValue,controlGroup), margin=1)) # proportions of control/treatment groups seem consistent across treatments
-summary(aov(campaignValue  ~ controlGroup, data=f_a)) 
-# there are three campaignValues with very different segment size, but they show no difference in treatment/control population >> deleting some data (campaignValue other than "2000" does not shift the distribution)
-
-#with(f_a, prop.table(table(converted,controlGroup, campaignValue), margin=1))
-
-table(f_a$checkoutDiscount) #no checkout discounts in the data?!
-prop.table(table(f_a$checkoutAmount>0, f_a$controlGroup)) #~5% have a positive checkout amount
-
-treatment_uplift_a <- aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[2,2]
-treatment_uplift_a #the treatment gives an average uplift across the whole population of 0.4892036
-summary(aov(checkoutAmount  ~ controlGroup, data=f_a)) # the differences in checkout amount are statistically significant!
-t.test(checkoutAmount ~ controlGroup, data=f_a) # the differences in checkout amount are statistically significant!
-
-names(f_a)
-
-table(f_a$campaignMov)
-
-table(f_a$checkoutAmount>=105,f_a$controlGroup)#14.800 people qualified for actually using the discount of 20€ through achieving the minimum order value
-with(f_a, prop.table(table(checkoutAmount>=105,controlGroup), margin=1)) # 25% of the treatment group have a checkout amount >=105 and 22.8% of the control group do
-
-
 # Decriptive Analysis ------------------
 str(f_a)
 table(f_a$controlGroup)
@@ -77,6 +46,19 @@ summary(aov(campaignValue  ~ controlGroup, data=f_a))
 
 table(f_a$checkoutDiscount) #no checkout discounts in the data?!
 prop.table(table(f_a$checkoutAmount>0, f_a$controlGroup)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
+
+
+treatment_uplift_a <- aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[2,2]
+treatment_uplift_a #the treatment gives an average uplift across the whole population of 0.4892036
+summary(aov(checkoutAmount  ~ controlGroup, data=f_a)) # the differences in checkout amount are statistically significant!
+t.test(checkoutAmount ~ controlGroup, data=f_a) # the differences in checkout amount are statistically significant!
+
+names(f_a)
+
+table(f_a$campaignMov)
+
+table(f_a$checkoutAmount>=105,f_a$controlGroup)#14.800 people qualified for actually using the discount of 20â¬ through achieving the minimum order value
+with(f_a, prop.table(table(checkoutAmount>=105,controlGroup), margin=1)) # 25% of the treatment group have a checkout amount >=105 and 22.8% of the control group do
 
 
 # CLEANING ----------------------------------------------------------------
@@ -152,37 +134,13 @@ f_a <- f_a[,-which(names(f_a) %in% highlyCorrelated)]
 
 
 
-# FEATURE SELECTION -------------------------------------------------------
-#http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
-#https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
-
-set.seed(7)
-# load the library
-library(mlbench)
-library(caret)
-# load the data
-# define the control using a random forest selection function
-control <- rfeControl(functions=rfFuncs, method="cv", number=10)
-#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
-subsets <- c(1:5, 10, 15, 20, 25)
-
-# run the RFE algorithm
-results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control, maximize=TRUE)
-# summarize the results
-print(results)
-# list the chosen features
-predictors(results)
-# plot the results
-plot(results, type=c("g", "o"))
-
 # 1ST ROUND SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
 
 train_indices_f_a <- list()
 
-combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillström data because the variable indicates control group membership
+combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
 xtabs(~converted+treatment, f_a)
 sample_size_f_a <- as.numeric(xtabs(~converted+treatment, f_a))
-
 
 for(i in 1:4){
   train_indices_f_a[[i]] <- sample(which(f_a$converted == combinations$Conversion[i] &
@@ -199,7 +157,7 @@ trainData_small <- f_a[trainIndex_f_a,] # temporarily the learning data is only 
 
 train_indices_f_a2 <- list()
 
-#combinations_f_a2 <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(1,0))) # treatment is ordered 1,0 compared to hillström data because the variable indicates control group membership
+#combinations_f_a2 <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(1,0))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
 sample_size_f_a2 <- as.numeric(xtabs(~converted+treatment, trainData_small))
 
 
@@ -239,7 +197,7 @@ aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[2,2] - aggregate
 # 
 # train_indices_f_a <- list()
 # 
-# combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillström data because the variable indicates control group membership
+# combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
 # xtabs(~converted+controlGroup, f_a)
 # sample_size_f_a <- as.numeric(xtabs(~converted+controlGroup, f_a))
 # 
@@ -257,6 +215,41 @@ aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[2,2] - aggregate
 # trainData <- f_a[trainIndex_f_a,]
 # testData  <- f_a[-trainIndex_f_a,]
 # 
+
+# FEATURE SELECTION -------------------------------------------------------
+#http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
+#https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+
+set.seed(7)
+# load the library
+library(mlbench)
+library(caret)
+
+library(doParallel) 
+cl <- makeCluster(detectCores(), type='PSOCK')
+registerDoParallel(cl)
+
+# load the data
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
+subsets <- c(1:5, 10, 15, 20, 25)
+
+set.seed(123)
+seeds <- vector(mode = "list", length = 11)
+for(i in 1:10) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
+seeds[[11]] <- sample.int(1000, 1)
+
+# run the RFE algorithm
+set.seed(1)
+system.time(rfe_f_a.results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control, maximize=TRUE))
+
+# summarize the results
+print(results)
+# list the chosen features
+predictors(results)
+# plot the results
+plot(results, type=c("g", "o"))
 
 
 # Average Treatment Effect (ATE) ---------------------------------------------------
