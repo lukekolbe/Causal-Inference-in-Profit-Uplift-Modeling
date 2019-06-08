@@ -128,9 +128,22 @@ f_a <- f_a[,-which(names(f_a) %in% c("controlGroup", "epochSecond","campaignMov"
 correlationMatrix <- cor(f_a[,-which(names(f_a) %in% c("converted", "treatment","checkoutAmount"))]) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
 # summarize the correlation matrix
 #print(correlationMatrix)
-highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE)
 
-f_a <- f_a[,-which(names(f_a) %in% highlyCorrelated)]
+#### RESULT OF CORRELATION CHECK IN F_A; F_B; B_T DATA: 17 FEATURES WITH HIGH CORRELATION POTENTIAL
+# c("HoursSinceFirstVisit","IsMobile","RecencyOfPreviousSessionInHrs",
+# "SecondsFor.3.","SecondsSinceFirst.overview.","SecondsSinceFirst.product.",
+# "SecondsSincePrevious","SessionTimeInSeconds","targetViewCount",
+# "TimeSinceLastVisit","TimeSinceOn.overview.","TimeToFirst.product.",
+# "TotalClickCount","ViewCount","ViewsOn.overview.",
+# "ViewsOn.product.","targetViewCount",)
+
+f_a <- f_a[,-which(names(f_a) %in% c("HoursSinceFirstVisit","IsMobile","RecencyOfPreviousSessionInHrs",
+                                     "SecondsFor.3.","SecondsSinceFirst.overview.","SecondsSinceFirst.product.",
+                                     "SecondsSincePrevious","SessionTimeInSeconds","targetViewCount",
+                                     "TimeSinceLastVisit","TimeSinceOn.overview.","TimeToFirst.product.",
+                                     "TotalClickCount","ViewCount","ViewsOn.overview.",
+                                     "ViewsOn.product.","targetViewCount"))]
 
 
 
@@ -191,30 +204,6 @@ aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[2,2] - aggregate
 #total population uplift is slightly lower than in the complete sample
 
 
-
-# stratification for production -------------------------------------------
-
-# 
-# train_indices_f_a <- list()
-# 
-# combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
-# xtabs(~converted+controlGroup, f_a)
-# sample_size_f_a <- as.numeric(xtabs(~converted+controlGroup, f_a))
-# 
-# 
-# for(i in 1:4){
-#   train_indices_f_a[[i]] <- sample(which(f_a$converted == combinations$Conversion[i] &
-#                                            f_a$controlGroup == combinations$Treatment[i])
-#                                    , size = round(0.75*sample_size_f_a[i]), replace=FALSE) 
-# } 
-# 
-# 
-# 
-# trainIndex_f_a <- c(train_indices_f_a, recursive=TRUE)
-# 
-# trainData <- f_a[trainIndex_f_a,]
-# testData  <- f_a[-trainIndex_f_a,]
-# 
 
 # FEATURE SELECTION -------------------------------------------------------
 #http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
