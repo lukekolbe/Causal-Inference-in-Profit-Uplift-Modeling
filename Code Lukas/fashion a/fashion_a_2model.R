@@ -1,47 +1,4 @@
 
-
-
-
-set.seed(666)
-
-getwd()
-f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
-#f_a <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
-
-
-
-f_a$treatment <- numeric(nrow(f_a))
-f_a$treatment <- ifelse(f_a$controlGroup==1, 0, 1)
-
-f_a <- f_a[,c(4:9,94,63,10:62,64:93,1,2,3)] # sorting new for better visibility of important columns
-
-#f_a_5 <- f_a[f_a$campaignValue==500,-which(names(f_a) %in% c("campaignUnit", "campaignTags", "trackerKey", "campaignId", "campaignValue"))] #separating the different treatment values
-#f_a_0 <- f_a[f_a$campaignValue==0,-which(names(f_a) %in% c("campaignUnit", "campaignTags", "trackerKey", "campaignId", "campaignValue"))]
-f_a <- f_a[f_a$campaignValue==2000,-which(names(f_a) %in% c("campaignUnit", "campaignTags", "trackerKey", "campaignId", "campaignValue"))] # only work with those with campaign-value of "2000" as they are the largest uniform group!
-
-
-
-train_indices_f_a <- list()
-
-combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillström data because the variable indicates control group membership
-xtabs(~converted+controlGroup, f_a)
-sample_size_f_a <- as.numeric(xtabs(~converted+controlGroup, f_a))
-
-
-for(i in 1:4){
-  train_indices_f_a[[i]] <- sample(which(f_a$converted == combinations$Conversion[i] &
-                                           f_a$controlGroup == combinations$Treatment[i])
-                                   , size = round(0.25*sample_size_f_a[i]), replace=FALSE) 
-} 
-
-
-
-trainIndex_f_a <- c(train_indices_f_a, recursive=TRUE)
-
-testData <- f_a[trainIndex_f_a,]
-trainData  <- f_a[-trainIndex_f_a,]
-
-
 # TWO MODEL APPROACH (REGRESSION) ---------------------------------------------------------------
 
 

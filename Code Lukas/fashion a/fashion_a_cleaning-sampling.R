@@ -145,6 +145,7 @@ f_a <- f_a[,-which(names(f_a) %in% c("HoursSinceFirstVisit","IsMobile","RecencyO
                                      "TotalClickCount","ViewCount","ViewsOn.overview.",
                                      "ViewsOn.product.","targetViewCount"))]
 
+cor_complete <- cor(f_a)
 
 
 # 1ST ROUND SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
@@ -165,6 +166,7 @@ for(i in 1:4){
 trainIndex_f_a <- c(train_indices_f_a, recursive=TRUE)
 
 trainData_small <- f_a[trainIndex_f_a,] # temporarily the learning data is only a small partition!
+
 
 # SAMPLE SPLITTING AND STRATIFICATION 2ND ROUND (FOR PRE-TRAINING) ---------------------------------------------------
 
@@ -208,6 +210,7 @@ aggregate(checkoutAmount ~ treatment, data=testData_f_a2, mean)[2,2] - aggregate
 # FEATURE SELECTION -------------------------------------------------------
 #http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
 #https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+#https://stackoverflow.com/questions/32290513/making-recursive-feature-elimination-using-caret-parallel-on-windows
 
 set.seed(7)
 # load the library
@@ -220,26 +223,33 @@ registerDoParallel(cl)
 
 # load the data
 # define the control using a random forest selection function
-control <- rfeControl(functions=rfFuncs, method="cv", number=10)
+control <- rfeControl(functions=rfFuncs, method="cv", number=5, seeds=seeds, saveDetails = TRUE)
 #control <- rfeControl(functions=lmFuncs, method="cv", number=10)
-subsets <- c(1:5, 10, 15, 20, 25)
+subsets <- c(5,6,8,10,12,15)
 
 set.seed(123)
-seeds <- vector(mode = "list", length = 11)
-for(i in 1:10) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
-seeds[[11]] <- sample.int(1000, 1)
+seeds <- vector(mode = "list", length = 6)
+for(i in 1:5) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
+seeds[[6]] <- sample.int(1000, 1)
 
 # run the RFE algorithm
 set.seed(1)
-system.time(rfe_f_a.results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control, maximize=TRUE))
+system.time(rfe_f_a.results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control))
+
+saveRDS(rfe_f_a.results, "rfe_f_a.results.rds")
+
+stopCluster(cl)
+
+rfe_f_a <- readRDS("/Volumes/kolbeluk/rfe_f_a.results.rds")
 
 # summarize the results
-print(results)
+print(rfe_f_b)
 # list the chosen features
-predictors(results)
+predictors(rfe_f_b)
 # plot the results
-plot(results, type=c("g", "o"))
-
+plot(rfe_f_b, type=c("g", "o"))
+rfe_var <- rfe_f_b$variables
+rfe_var[rfe_var$Variables==15,]
 
 # Average Treatment Effect (ATE) ---------------------------------------------------
 

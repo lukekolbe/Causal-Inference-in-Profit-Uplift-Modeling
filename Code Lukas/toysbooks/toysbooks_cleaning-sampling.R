@@ -108,10 +108,10 @@ for(i in 1:ncol(b_t)){
 b_t$treatment = numeric(nrow(b_t))
 b_t$treatment = ifelse(b_t$controlGroup==0, 1, 0)
 
-b_t$campaignValue[b_t$campaignValue > 15] <- b_t$campaignValue[b_t$campaignValue > 15]/100 # correcting cases where discount precentages are given in two-digits instead of four (e.g. 15 instead of 1500)
-#bt$campaignValue <- bt$campaignValue/100
-bt$basketValue <- bt$checkoutAmount + bt$checkoutDiscount
-bt$discountPercentage  <- bt$checkoutDiscount / bt$basketValue
+# b_t$campaignValue[b_t$campaignValue > 15] <- b_t$campaignValue[b_t$campaignValue > 15]/100 # correcting cases where discount precentages are given in two-digits instead of four (e.g. 15 instead of 1500)
+# #bt$campaignValue <- bt$campaignValue/100
+# b_t$basketValue <- bt$checkoutAmount + bt$checkoutDiscount
+# b_t$discountPercentage  <- bt$checkoutDiscount / bt$basketValue
 
 
 
