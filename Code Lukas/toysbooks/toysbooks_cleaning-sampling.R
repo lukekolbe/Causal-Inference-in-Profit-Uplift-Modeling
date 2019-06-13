@@ -130,7 +130,7 @@ b_t$treatment = ifelse(b_t$controlGroup==0, 1, 0)
 #b_t <- b_t[b_t$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
 
 # Dropping further columns, we do not need anymore
-b_t <- b_t[,-which(names(b_t) %in% c("controlGroup", "epochSecond","campaignMov","campaignValue","label", "NormalizedCartSum"))] 
+b_t <- b_t[,-which(names(b_t) %in% c("controlGroup","campaignMov","campaignValue", "NormalizedCartSum"))] 
 
 
 # correlation test and removal of highly correlated variables ------------------
@@ -182,30 +182,41 @@ library(mlbench)
 library(caret)
 
 library(doParallel) 
-cl <- makeCluster(detectCores()-8, type='PSOCK')
-registerDoParallel(cl)
+cl2 <- makeCluster(8, type='PSOCK')
+registerDoParallel(cl2)
 
 # load the data
-# define the control using a random forest selection function
-control <- rfeControl(functions=rfFuncs, method="cv", number=10)
-#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
-subsets <- c(1:5, 10, 15, 20, 25)
+
+subsets <- c(5,7,8,9,10,12,15,20)
 
 set.seed(123)
-seeds <- vector(mode = "list", length = 11)
-for(i in 1:10) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
-seeds[[11]] <- sample.int(1000, 1)
+seeds <- vector(mode = "list", length = 9)
+for(i in 1:8) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
+seeds[[9]] <- sample.int(1000, 1)
+
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=8, seeds=seeds, saveDetails = TRUE, allowParallel=TRUE)
+#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
 
 # run the RFE algorithm
 set.seed(1)
-system.time(rfe_b_t.results <- rfe(trainData_b_t[,-c(1,2)], trainData_b_t[,1], sizes=subsets, rfeControl=control, maximize=TRUE))
+# str(trainData_f_a2)
+names(trainData_b_t)
+# summary(trainData_f_a2$label)
+system.time(rfe_b_t.results2 <- rfe(trainData_b_t[,-c(2,3,4,55)], trainData_b_t[,4], sizes=subsets, rfeControl=control))
+
+
+saveRDS(rfe_b_t.results2, "rfe_b_t.results_label.rds")
+
+stopCluster(cl2)
+
 
 # summarize the results
-print(results)
+print(rfe_b_t.results2)
 # list the chosen features
-predictors(results)
+predictors(rfe_b_t.results2)
 # plot the results
-plot(results, type=c("g", "o"))
+plot(rfe_b_t.results2, type=c("g", "o"))
 
 
 # Average Treatment Effect (ATE) ---------------------------------------------------

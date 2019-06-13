@@ -108,7 +108,7 @@ summary(upliftRF_hllstrm)
 
 n <- names(trainData_f_a2)
 
-f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
+f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment")], collapse = " + ")))
 f3
 
 upliftRF_f_a2 <- upliftRF(f3,
@@ -143,6 +143,26 @@ pred_mens[["upliftRF"]] <- pred_upliftRF_mens[, 1] - pred_upliftRF_mens[, 2]
 summary(pred_mens[["upliftRF"]])
 head(pred_mens)
 
+
+
+# UpliftRF transformed target ---------------------------------------------
+
+summary(upliftRF_hllstrm)
+
+
+n <- names(trainData_f_a2)
+
+f4 <- as.formula(paste("var_z ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
+f4
+
+upliftRF_f_a2 <- upliftRF(f3,
+                          data = trainData_f_a2,
+                          mtry = 10,
+                          ntree = 1000,
+                          split_method = "KL",
+                          minsplit = 50,
+                          verbose = TRUE)
+summary(upliftRF_men)
 
 
 # CausalForest ------------------------------------------------------------
@@ -182,9 +202,28 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in 
 # indx[indx[,1=="TRUE"],]
 #names of columns that contain is.na==TRUE
 
+
+
+            # cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
+            #                                      tx=trainData_all$treatment, 
+            #                                      y=trainData_all$spend,
+            #                                      num.trees=500,
+            #                                      eps=0.3)
+            # 
+            # saveRDS(cb_hillstrom, "cb_hillstrom.rds")
+            # cb_hillstrom <- readRDS("cb_hillstrom.rds")
+            # 
+            # summary(cb_hillstrom)
+            # 
+            # 
+            # cb_hllstrm_pred <- predict(cb_hillstrom, 
+            #                            newx = testData_all[, -c(2,6,8,9,11,12,13)], 
+            #                            type = "treatment.effect",
+            #                            num.trees = 500,
+            #                            honest = FALSE,
+            #                            naVal = 0)
+
 test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
-
-
 
 causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
                                                                   "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
@@ -193,6 +232,12 @@ causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov",
 
 
 parallelStop() 
+
+
+
+# BART --------------------------------------------------------------------
+
+
 
 
 # Performance Assessment for Uplift Models  ---------------------------------------------

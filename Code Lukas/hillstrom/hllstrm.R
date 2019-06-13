@@ -5,6 +5,8 @@
 # install_github("susanathey/causalTree")
 # install_github("saberpowers/causalLearning")
 # library(devtools) 
+install.packages("BART")
+
 
 library(devtools)
 library(causalTree)
@@ -16,6 +18,8 @@ library(tidyverse)
 library(tools4uplift)
 library(causalLearning)
 library(causalTree)
+library("BART")
+
 
 set.seed(101010)
 
@@ -60,6 +64,11 @@ for(level in unique(hllstrm$channel)){
 # for(level in unique(hllstrm$segment)){
 #   hllstrm[paste("segment", level, sep = "_")] <- ifelse(hllstrm$segment == level, 1, 0)
 # }
+
+
+
+
+
 
 # TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
 
@@ -334,6 +343,12 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom,
                               newdata=testData_all[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
 
+
+# perf_cf <- uplift::performance(pr.y1_ct1 = cf_hillstrom_preds[,1], pr.y1_ct0 = rep(0, times=length(cf_hillstrom_preds[,1])), # causal forests estimate the difference in probability directly
+#                                y = testData_all$spend, ct = testData_all$treatment, direction = 1, groups = 10)
+# perf_cf # 9th Bin has uplift of 0.13 --> 13% more conversion
+
+
 saveRDS(cf_hillstrom, "cf_hillstrom.RDS")
 
 
@@ -456,10 +471,13 @@ cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
 saveRDS(cb_hillstrom, "cb_hillstrom.rds")
 cb_hillstrom <- readRDS("cb_hillstrom.rds")
 
+cv.cb_hillstrom <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillstrom results/cv.cb_hillstrom.rds")
+
+
 summary(cb_hillstrom)
 
 
-cb_hllstrm_pred <- predict(cb_hillstrom, 
+cb_hllstrm_pred <- predict(cv.cb_hillstrom, 
                            newx = testData_all[, -c(2,6,8,9,11,12,13)], 
                            type = "treatment.effect",
                            num.trees = 500,

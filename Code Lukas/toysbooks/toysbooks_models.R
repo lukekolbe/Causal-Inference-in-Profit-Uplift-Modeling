@@ -1,220 +1,289 @@
+# install.packages("grf")
+# install.packages("uplift")
+# install.packages("devtools")
+# install.packages("caret")
+# install_github("susanathey/causalTree")
+# install_github("saberpowers/causalLearning")
+# install.packages("tools4uplift")
 
 
-# Models  ---------------------------------------------------------------------
 
-#install.packages("mlr")
-library(mlr) 
-
-
-cols.dont.want=c("campaignTags","campaignUnit", "campaignID", "trackerKey", "epochSecond", "campaignID") # get rid of these
-bt=bt[,! names(bt) %in% cols.dont.want, drop=F]
-str(bt)
-library(grf)
-
-# Data partitioning
-# Partition the data into training and test set, using 25% of the data for testing 
-# We want to stratify on both Conversion and Treatment to keep the distribution between train and testing equal
-train_indices <- list()
-combinations <- expand.grid(list("converted"=c(0,1), "treatment"= c(0,1)))
-combinations
-
-xtabs(~converted+treatment, bt)
-sample_size <- as.numeric(xtabs(~converted+treatment, bt))
-sample_size
-
-for(i in 1:4){
-  train_indices[[i]] <- sample( which(bt$converted == combinations$converted[i] &
-                                        bt$treatment == combinations$treatment[i])
-                                , size = round(0.75*sample_size[i])) 
-}
-train_indices
-trainIndex <- c(train_indices, recursive=TRUE)
-
-trainData <- bt[trainIndex,] 
-str(trainData)
-testData  <- bt[-trainIndex,]
-
-summary(trainData[,c("converted","treatment")])
-summary( testData[,c("converted","treatment")])
-
-# Average Treatment Effect (ATE)
-
-experiment = table(list("treatment" = bt$treatment, "converted" = bt$converted))
-experiment
-
-# The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
-# which is plausible because of the random sampling
-# for conversion the ATE is 0.04 (4%)
-mean(bt$converted[bt$treatment==1]) - mean(bt$converted[bt$treatment==0])
-# or alternatively:
-(experiment[2,2]/sum(experiment[2,]) ) - (experiment[1,2]/sum(experiment[1,]) )
-# for revenue (checkoutAmount) the ATE is 3.2 (Dollars)
-mean(bt$checkoutAmount[bt$treatment==1]) - mean(bt$checkoutAmount[bt$treatment==0])
-
-# Check random assignment of groups ----------------------------
-
-# This is an important assumptions in uplift modeling and, more generally, experimental designs. To verify a random assignment, we have to check the balance of the A/B indicator. The function checkBalance calculates standardized mean differences along each covariate and tests for conditional independence of the treatment variable and the covariates. In randomized empirical experiments the treatment and control groups should be roughly similar (i.e. balanced) in their distributions of covariates.
-# Of course, we would expect the conversion rate to be different between the treatment and control group
-library("uplift")
-cb <- checkBalance(treatment~.-converted, data = trainData, report = c("adj.means", "adj.mean.diffs", "p.values", "chisquare.test"))
-
-# Balance properties of first ten covariates 
-# Be aware that the results are saved as a tensor or '3D matrix'.
-dim(cb$results)
-round(cb$results[,,], 2)
-# The function automatically computes a chi-squared test for the conditional independence of the covariates to the treatment variable
-cb$overall
-
-# The test rejects the null hypothesis that the sample is balanced, i.e. truly randomized, at the 1% level. The reason is possibly that the customer were not assigned randomly to the treatment and control group, but based on some non-random procedure, e.g. an existing model or some decision rule.
-# Think deeply about how this will impact your model!
-
-
-# Uplift/Causal decision tree ------------
+library(devtools)
 library(causalTree)
-tree <- causalTree(converted~.-treatment, data = trainData, treatment = trainData$treatment,
-                   split.Rule = "CT", cv.option = "CT", split.Honest = F, cv.Honest = F, split.Bucket = F, 
-                   xval = NULL, cp = 0.005, minsize = 50, propensity = 0.5)
+library(caret)
+library(grf)
+library("uplift")
+library(causalLearning)
+library(tidyverse)
+library(tools4uplift)
 
-#opcp <- tree$cptable[,1][which.min(tree$cptable[,4])] # error
 
-#opfit <- prune(tree, opcp) #error
 
-rpart.plot(tree) # shows only one bin 0.04 with 100%
 
-# casual tree on checkoutAmount
-tree2 <- causalTree(checkoutAmount~.-treatment, data = trainData, treatment = trainData$treatment,
-                    split.Rule = "TOT", cv.option = "TOT", split.Honest = F, cv.Honest = F, split.Bucket = F, 
-                    xval = 5, cp = 0.005, minsize = 30, propensity = 0.5)
-rpart.plot(tree2) # shows top bin of 3.3 with 100% --> similar to xperiment on checkoutAmount
-# basketvalue <144 is most important variable w/ 97%
+# Causal Tree on checkoutAmount ------------------------------------------------------
 
-# Uplift Random Forest ----------------------------------------------------
-#table(trainData$converted) # Binary
-#table(trainData$treatment) # Binary
+str(trainData_b_t)
 
-upliftRF <- upliftRF(converted ~ trt(treatment) +. -treatment,
-                     data = trainData,
-                     mtry = 5,
-                     ntree = 100,
-                     split_method = "KL", 
-                     minsplit = 50,
-                     verbose = TRUE)
-# Error message want´s binary variables, but they are binary???
-summary(upliftRF) 
+n <- names(trainData_b_t)
+f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "campaignValue",
+                                                            "checkoutDiscount","controlGroup",
+                                                            "treatment","converted",
+                                                            "checkoutAmount","epochSecond",
+                                                            "label","ViewedBefore.cart.", 
+                                                            "TabSwitchPer.product.", "TimeToFirst.cart.", 
+                                                            "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch",
+                                                            "TabSwitchOnLastScreenCount")], collapse = " + ")))
 
-# Note that the summary() includes the raw variable importance values. More options are available for function varImportance().
-varImportance(upliftRF, plotit = FALSE, normalize = TRUE)
 
-# Predictions for fitted Uplift RF model
-pred <- list()
-pred_upliftRF <- predict(object = upliftRF, newdata = testData)
+tree_b_t1 <- causalTree(f, data = trainData_b_t, treatment = trainData_b_t$treatment,
+                        split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = T, minbucket=2,
+                        xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
+#cp = 0.0002 has decent size
+
+saveRDS(tree_b_t1, file = "tree_b_t1.rds")
+
+rpart.plot(tree_b_t)
+summary(tree_b_t)
+
+tree_b_t$cptable #### MODELING ON CHECKOUT AMOUNT GIVES NO GOOD RESULTS! the cross validation error INCREASES with any split
+
+# Causal Tree on label (transformed according to Gubela) ------------------------------------------------------
+
+f2 <- as.formula(paste("label ~", paste(n[!n %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount",
+                                                    "epochSecond","label","ViewedBefore.cart.", 
+                                                    "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount", "treatment")], collapse = " + ")))
+f2
+
+tree_b_t.1 <- causalTree(f2, data = trainData_b_t, treatment = treatment,
+                         split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = F, minbucket=2,
+                         xval = 5, cp = 0.0004, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
+
+rpart.plot(tree_b_t.1)
+summary(tree_b_t.1)
+
+tree_b_t.1$cptable
+
+opcp <- tree_b_t.1$cptable[,1][which.min(tree_b_t$cptable[,3])] #BADS example minimizes cross validation error >> no results. If rel error is minimized, the results seem more logical.
+opfit <- prune(tree_b_t, cp=opcp)
+rpart.plot(opfit) ## this procedure always gives only one node for regression >> nonsense
+
+
+pred_cT_b_t <- predict(object = tree_b_t, newdata = testData_b_t)
 # The predictions differentiate between the treatment and control condition
 # pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
-# pr.y1_ct1 gives an estimate for a person to convert when in the control group
-head(pred_upliftRF) 
+# pr.y1_ct0 gives an estimate for a person to convert when in the control group
+head(pred_cT_b_t) 
+summary(pred_cT_b_t)
 
 # Our goal is to identify the people for whom the treatment will lead to a large increase 
 # in conversion probability, i.e. where the difference between the treatment prob. and the
 # control prob. is positive and high
-pred[["upliftRF"]] <- pred_upliftRF[, 1] - pred_upliftRF[, 2]
+preds_b_t[["CausalTree"]] <- pred_cT_b_t[, 1] - pred_cT_b_t[, 2]
 # We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
-summary(pred[["upliftRF"]])
-
-# Performance Assessment for Uplift Models ----------------------------
-
-# GRF -----------------------------------------------------------------
-library("grf")
-X <- bt[, !(colnames(bt) %in% c("checkoutAmount","treatment"))]
-str(X)
-Y <- bt$checkoutAmount
-W <- bt$treatment
-
-# Note that there are several ways to specify/ calculate the distribution of the test statistic of the independence test. In this case,
-# we use Monte Carlo estimation (via approximate) with 500 repetitions.
-cf <- causal_forest(X = X[trainIndex,], Y = Y[trainIndex], W=W[trainIndex],
-                    num.trees = 300, 
-                    mtry = 10,
-                    sample.fraction = 0.5,
-                    min.node.size = 50,
-                    honesty = TRUE, honesty.fraction=NULL,
-                    ci.group.size=2, compute.oob.predictions = TRUE, seed = 12)
-
-# Predictions from a fitted CF model
-pred_cf <- predict(cf, newdata = X[-trainIndex,], estimate.variance=FALSE)
-head(pred_cf)
-pred_cf <- pred_cf[,1]
-
-# There seem to be many cases where the treatment decreases conversion!
-# Remember that our treatment assignment was not random, so our results
-# are likely biased.
-summary(pred_cf)
-
-# WILL ALS TARGET BINÄRE VARIABLE
-#Performance Assessment for Uplift Models 
-perf_cf <- uplift::performance(pr.y1_ct1 = pred_cf, pr.y1_ct0 = rep(0, times=length(pred_cf)), # causal forests estimate the difference in probability directly
-                               y = Y[-trainIndex], ct = W[-trainIndex], direction = 1, groups = 10)
-perf_cf # 9th Bin has uplift of 0.13 --> 13% more conversion
-
-# Plot performance
-#plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
-#lines(perf_cf[, "uplift"] ~ perf_cf[, "group"], col = "red")
-# It seems like the causal forest outperforms the uplift random forest for most decile choices. 
-
-# We can compare the models using the Qini coefficients that we have calculated
-# Similar to the AUC, the Qini coefficient may not be a good metric if the gain curves intersect
-Qini[["causalForest"]] <- qini(perf_cf, plotit = FALSE)$Qini
-Qini
-
-#------------
-fa <- read.csv("FashionA.csv", sep=",")
-View(fa)
-table(fa$checkoutAmount>0,fa$controlGroup)
-
-fa[,c(1:3)] <- NULL
-
-fa$treatment = numeric(nrow(fa))
-
-fa$treatment = ifelse(fa$controlGroup==0, 1, 0)
-
-## Average Treatment Effect (ATE)
-experiment <- table(list("Treated" = fa$treatment, "Converted" = fa$converted))
-experiment
-
-# The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
-# which is plausible because of the random sampling
-mean(fa$converted[fa$treatment==1]) - mean(fa$converted[fa$treatment==0])
-# or alternatively:
-(experiment[2,2]/sum(experiment[2,]) ) - (experiment[1,2]/sum(experiment[1,]) )
-
-# Data partitioning
-# Partition the data into training and test set, using 25% of the data for testing 
-# We want to stratify on both Conversion and Treatment to keep the distribution between train and testing equal
-train_indices <- list()
-combinations <- expand.grid(list("converted"=c(0,1), "treatment"= c(0,1)))
-combinations
-
-xtabs(~converted+treatment, fa)
-sample_size <- as.numeric(xtabs(~converted+treatment, fa))
-sample_size
-
-for(i in 1:4){
-  train_indices[[i]] <- sample( which(fa$converted == combinations$converted[i] &
-                                        fa$treatment == combinations$treatment[i])
-                                , size = round(0.75*sample_size[i])) 
-}
-train_indices
-trainIndex <- c(train_indices, recursive=TRUE)
-
-trainData <- fa[trainIndex,] 
-testData  <- fa[-trainIndex,]
-
-summary(trainData[,c("converted","treatment")])
-summary( testData[,c("converted","treatment")])
+summary(pred_mens[["CausalTree"]])
+head(pred_mens)
 
 
-fb <- read.csv("FashionB.csv", sep=",")
-NA_Columns = colMeans(is.na(fb))
-NA_Columns
-colnames_fb=colnames(fb)
-na_columns_fb<- data.frame("Column"=colnames_fb, "na_percentage" = NA_Columns)
-write.csv(na_columns_fb, file = "NA_Columns_Fashion_B.csv", row.names = FALSE)
+# UPLIFT RF --------------------------------------------------------
+# str(trainData_mens)
+# str(trainData_womens)
+# table(trainData$z_var2)
+# table(testData$z_var2)
+
+names(trainData_b_t)
+
+trainData_all[,-which(names(trainData_all) %in% c("conversion","spend","treatment", "segment","history_segment","zip_code","channel"))]
+
+
+# upliftRF_hllstrm <- upliftRF(conversion ~ trt(treatment) +.,
+#                              data = trainData_all[,-which(names(trainData_all) %in% c("spend","segment","history_segment","zip_code","channel"))],
+#                              mtry = 6,
+#                              ntree = 1000,
+#                              split_method = "KL",
+#                              minsplit = 50,
+#                              verbose = TRUE)
+
+summary(upliftRF_hllstrm)
+
+
+n <- names(trainData_b_t)
+
+f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment")], collapse = " + ")))
+f3
+
+upliftRF_b_t <- upliftRF(f3,
+                          data = trainData_b_t,
+                          mtry = 10,
+                          ntree = 1000,
+                          split_method = "KL",
+                          minsplit = 50,
+                          verbose = TRUE)
+summary(upliftRF_men)
+### ONLY WORKS WITH BINARY TARGET
+
+
+# Note that the summary() includes the raw variable importance values. More options are available for function varImportance().
+varImportance(upliftRF_men, plotit = FALSE, normalize = TRUE)
+
+# Predictions for fitted Uplift RF model
+pred_mens <- list()
+pred_upliftRF_mens <- predict(object = upliftRF_men, newdata = testData_mens)
+# The predictions differentiate between the treatment and control condition
+# pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
+# pr.y1_ct1 gives an estimate for a person to convert when in the control group
+head(pred_upliftRF_mens) 
+summary(pred_upliftRF_mens) 
+
+
+# Our goal is to identify the people for whom the treatment will lead to a large increase 
+# in conversion probability, i.e. where the difference between the treatment prob. and the
+# control prob. is positive and high
+pred_mens[["upliftRF"]] <- pred_upliftRF_mens[, 1] - pred_upliftRF_mens[, 2]
+# We can see that there are indeed customers who are expected to not buy if targeted by our ads (negative difference)
+summary(pred_mens[["upliftRF"]])
+head(pred_mens)
+
+
+
+# UpliftRF transformed target ---------------------------------------------
+
+summary(upliftRF_hllstrm)
+
+
+n <- names(trainData_b_t)
+
+f4 <- as.formula(paste("var_z ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
+f4
+
+upliftRF_b_t <- upliftRF(f3,
+                          data = trainData_b_t,
+                          mtry = 10,
+                          ntree = 1000,
+                          split_method = "KL",
+                          minsplit = 50,
+                          verbose = TRUE)
+summary(upliftRF_men)
+
+
+# CausalForest ------------------------------------------------------------
+
+names(trainData_all)
+str(trainData_all)
+
+
+cf_hillstrom <- causal_forest(
+  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
+  Y = trainData_all$spend,
+  W = trainData_all$treatment,
+  num.trees = 1000,
+  honesty = TRUE,
+  honesty.fraction = NULL,
+  tune.parameters=TRUE,
+  seed = 1839
+)
+
+summary(cf_hillstrom)
+
+cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
+                              estimate.variance = TRUE)
+
+# Causal Boosting---------------------------------------------------------
+
+# library("parallelMap")
+# parallelStartSocket(3) #level = "causalLearning::causalBoosting"
+# library("parallel")
+# RNGkind("L'Ecuyer-CMRG")
+# clusterSetRNGStream(iseed = 1234567)
+
+# indx <- t(data.frame(lapply(trainData_b_t, function(x) any(is.na(x)))))
+# names(indx)
+# names(indx[,])
+# indx[indx[,1=="TRUE"],]
+#names of columns that contain is.na==TRUE
+
+
+
+# cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
+#                                      tx=trainData_all$treatment, 
+#                                      y=trainData_all$spend,
+#                                      num.trees=500,
+#                                      eps=0.3)
+# 
+# saveRDS(cb_hillstrom, "cb_hillstrom.rds")
+# cb_hillstrom <- readRDS("cb_hillstrom.rds")
+# 
+# summary(cb_hillstrom)
+# 
+# 
+# cb_hllstrm_pred <- predict(cb_hillstrom, 
+#                            newx = testData_all[, -c(2,6,8,9,11,12,13)], 
+#                            type = "treatment.effect",
+#                            num.trees = 500,
+#                            honest = FALSE,
+#                            naVal = 0)
+
+test <- trainData_b_t[,apply(trainData_b_t, 2, anyNA)==FALSE]
+
+causalboost_b_t <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
+                                                                  "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
+                                  tx=test$treatment, 
+                                  y=test$checkoutAmount)
+
+
+parallelStop() 
+
+
+
+# BART --------------------------------------------------------------------
+
+
+
+
+# Performance Assessment for Uplift Models  ---------------------------------------------
+
+# Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
+
+treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
+treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],"effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
+
+head(treatment_effect_groups, 10)
+
+# We cannot calculate the true treatment effect per person, but per group
+treatment_effect_groups$Decile <- cut(treatment_effect_groups$effect_estimate, breaks = 10, labels=FALSE)
+head(treatment_effect_groups)
+tail(treatment_effect_groups, 4)
+
+treatment_groups <- aggregate(treatment_effect_groups[,c("Conversion","effect_estimate")], 
+                              by=list("Decile"=treatment_effect_groups$Decile, "Treatment"=treatment_effect_groups$Treatment), 
+                              FUN=mean)
+# Conversion of customer without a treatment/coupon ranked by prediction
+{plot(treatment_groups$Conversion[10:1], type='l')
+  # Conversion of customer with a treatment/coupon ranked by prediction
+  lines(treatment_groups$Conversion[20:11], type='l', col="red")}
+## -> The uplift is the area between the curves
+treatment <- treatment_groups$Conversion[20:11] - treatment_groups$Conversion[10:1]
+
+# {uplift} has a function to calculate the Qini coefficient
+# Argument direction specifies whether we aim to maximize (P_treatment - P_control) or (P_control - P_treatment), or in other words
+# whether we aim for a high (purchase) probability or low (churn) probability
+
+perf_upliftRF <- uplift::performance(pr.y1_ct1 = pred_upliftRF[, 1], pr.y1_ct0 = pred_upliftRF[, 2], 
+                                     # with/without treatment prob.
+                                     y = testData$Conversion, ct = testData$Treatment, # outcome and treatment indicators
+                                     direction = 1, # maximize (1) or minimize (2) the difference? 
+                                     groups = 10)
+
+perf_upliftRF
+# Plot uplift random forest performance
+plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
+plot(treatment, col='red')
+
+# The Qini coefficient (derived from the Gini coefficient to measure the deviation from an equal distribution) is 
+# defined as the area between the incremental gains curve of the model and the area under the diagonal resulting from random targeting
+# in relation to the percentage of the population targeted.
+Qini_upliftRF <- qini(perf_upliftRF, plotit = TRUE) 
+
+Qini <- list()
+Qini[["upliftRF"]] <- Qini_upliftRF$Qini
+# The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here. 

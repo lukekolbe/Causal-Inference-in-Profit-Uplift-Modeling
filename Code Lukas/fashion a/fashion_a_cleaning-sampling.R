@@ -30,6 +30,13 @@ f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/
 #f_a <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
 f_a <- read.csv("H:\\Applied Predictive Analytics\\Data\\fashion\\FashionA.csv", sep=",")
 
+
+# variable transformation -------------------------------------------------
+
+f_a$z_var <- 0
+f_a$z_var <- ifelse(f_a$label>0, 1, 0)
+summary(f_a$z_var)
+
 # Decriptive Analysis ------------------
 str(f_a)
 table(f_a$controlGroup)
@@ -117,7 +124,7 @@ f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
 f_a <- f_a[f_a$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
 
 # Dropping further columns, we do not need anymore
-f_a <- f_a[,-which(names(f_a) %in% c("controlGroup", "epochSecond","campaignMov","campaignValue","label", "NormalizedCartSum"))] 
+f_a <- f_a[,-which(names(f_a) %in% c("controlGroup","campaignMov","campaignValue", "NormalizedCartSum"))] 
 
 
 # correlation test and removal of highly correlated variables ------------------
@@ -218,36 +225,42 @@ library(mlbench)
 library(caret)
 
 library(doParallel) 
-cl <- makeCluster(detectCores(), type='PSOCK')
+cl <- makeCluster(8, type='PSOCK')
 registerDoParallel(cl)
 
 # load the data
-# define the control using a random forest selection function
-control <- rfeControl(functions=rfFuncs, method="cv", number=5, seeds=seeds, saveDetails = TRUE)
-#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
-subsets <- c(5,6,8,10,12,15)
+
+subsets <- c(5,7,8,9,10,12,15,20)
 
 set.seed(123)
-seeds <- vector(mode = "list", length = 6)
-for(i in 1:5) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
-seeds[[6]] <- sample.int(1000, 1)
+seeds <- vector(mode = "list", length = 9)
+for(i in 1:8) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
+seeds[[9]] <- sample.int(1000, 1)
+
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=8, seeds=seeds, saveDetails = TRUE, allowParallel=TRUE)
+#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
 
 # run the RFE algorithm
 set.seed(1)
-system.time(rfe_f_a.results <- rfe(trainData_f_a2[,-c(1,2)], trainData_f_a2[,1], sizes=subsets, rfeControl=control))
+# str(trainData_f_a2)
+# names(trainData_f_a2)
+# summary(trainData_f_a2$label)
+system.time(rfe_f_a.results2 <- rfe(trainData_f_a2[,-c(2,3,4,55)], trainData_f_a2[,3], sizes=subsets, rfeControl=control))
+# on label
 
-saveRDS(rfe_f_a.results, "rfe_f_a.results.rds")
+saveRDS(rfe_f_a.results2, "rfe_f_a.results_label.rds")
 
 stopCluster(cl)
 
 rfe_f_a <- readRDS("/Volumes/kolbeluk/rfe_f_a.results.rds")
 
 # summarize the results
-print(rfe_f_b)
+print(rfe_f_a.results2)
 # list the chosen features
-predictors(rfe_f_b)
+predictors(rfe_f_a.results2)
 # plot the results
-plot(rfe_f_b, type=c("g", "o"))
+plot(rfe_f_a.results2, type=c("g", "o"))
 rfe_var <- rfe_f_b$variables
 rfe_var[rfe_var$Variables==15,]
 
@@ -287,6 +300,7 @@ mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(train
 # round(cb$results[,,], 2)
 # # The function automatically computes a chi-squared test for the conditional independence of the covariates to the treatment variable
 # cb$overall
+
 
 
 # SMOTE SAMPLING TRYOUT ---------------------------------------------

@@ -210,37 +210,42 @@ library(mlbench)
 library(caret)
 
 library(doParallel) 
-cl <- makeCluster(detectCores(), type='PSOCK')
+cl <- makeCluster(8, type='PSOCK')
 registerDoParallel(cl)
 
 # load the data
-# define the control using a random forest selection function
-control <- rfeControl(functions=rfFuncs, method="cv", number=5, seeds=seeds, saveDetails = TRUE)
-#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
-subsets <- c(5,6,8,10,12,15)
+
+subsets <- c(5,7,8,9,10,12,15,20)
 
 set.seed(123)
-seeds <- vector(mode = "list", length = 6)
-for(i in 1:5) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
-seeds[[6]] <- sample.int(1000, 1)
+seeds <- vector(mode = "list", length = 9)
+for(i in 1:8) seeds[[i]] <- sample.int(1000, length(subsets) + 1)
+seeds[[9]] <- sample.int(1000, 1)
+
+# define the control using a random forest selection function
+control <- rfeControl(functions=rfFuncs, method="cv", number=8, seeds=seeds, saveDetails = TRUE, allowParallel=TRUE)
+#control <- rfeControl(functions=lmFuncs, method="cv", number=10)
 
 # run the RFE algorithm
 set.seed(1)
-system.time(rfe_f_b.results <- rfe(trainData_f_b2[,-c(1,2)], trainData_f_b2[,1], sizes=subsets, rfeControl=control))
+# str(trainData_f_a2)
+# names(trainData_f_a2)
+# summary(trainData_f_a2$label)
+system.time(rfe_f_b.results2 <- rfe(trainData_f_b2[,-c(2,3,4,55)], trainData_f_b2[,3], sizes=subsets, rfeControl=control))
 
-saveRDS(rfe_f_b.results, "rfe_f_b.results.rds")
+saveRDS(rfe_f_b.results2, "rfe_f_b.results_label.rds")
 
 stopCluster(cl)
 
 rfe_f_b <- readRDS("/Volumes/kolbeluk/rfe_f_b.results.rds")
 
 # summarize the results
-print(rfe_f_b)
+print(rfe_f_b.results2)
 # list the chosen features
-predictors(rfe_f_b)
+predictors(rfe_f_b.results2)
 # plot the results
-plot(rfe_f_b, type=c("g", "o"))
-rfe_var <- rfe_f_b$variables
+plot(rfe_f_b.results2, type=c("g", "o"))
+rfe_var <- rfe_f_b.results2$variables
 rfe_var[rfe_var$Variables==15,]
 
 # Average Treatment Effect (ATE) ---------------------------------------------------

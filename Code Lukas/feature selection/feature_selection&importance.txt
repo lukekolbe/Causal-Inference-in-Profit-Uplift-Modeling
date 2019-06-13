@@ -26,6 +26,29 @@ Resampling performance over subset size:
         15 		27.78 		0.021386 		9.762  	2.217   		0.010634 		0.1711         
         51 		27.12 		0.062283 		9.459  	1.968   		0.011832 		0.2054        *
 
+
+
+Options for variable importances:
+>> which variables correlate with target? (top 20 each)
+	>> correlation table for all datasets (3)
+	>> high-ranking correlations for checkoutAmount, label, converted (3)
+	>> 9 columns
+
+>> which variables are picked by upliftRF (converted ~.)?
+	>> fashion a and b
+	>> start upliftRF for b_t?
+	>> 2 Columns (+1)
+	
+>> RFE results averaged by own script
+	>> 3x on checkoutAmount
+	>> 3x on label
+	>> different sizes...which one(s) to pick?!
+	
+
+
+
+
+
 SOURCES:
 #http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
 #https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
@@ -83,3 +106,11 @@ CODE EXECUTED FOR BT RFE
 > # run the RFE algorithm
 > set.seed(1)
 > system.time(rfe_b_t.results <- rfe(trainData_b_t[,-c(1,2)], trainData_b_t[,1], sizes=subsets, rfeControl=control))
+
+
+
+######### NIV
+Net Information Value
+>> 
+
+
