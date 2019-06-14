@@ -22,9 +22,9 @@ library(tools4uplift)
 
 # Causal Tree on checkoutAmount ------------------------------------------------------
 
-str(trainData_b_t)
+str(trainData_b_t2)
 
-n <- names(trainData_b_t)
+n <- names(trainData_b_t2)
 f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "campaignValue",
                                                             "checkoutDiscount","controlGroup",
                                                             "treatment","converted",
@@ -35,7 +35,7 @@ f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("campaignMov", "camp
                                                             "TabSwitchOnLastScreenCount")], collapse = " + ")))
 
 
-tree_b_t1 <- causalTree(f, data = trainData_b_t, treatment = trainData_b_t$treatment,
+tree_b_t1 <- causalTree(f, data = trainData_b_t2, treatment = trainData_b_t2$treatment,
                         split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = T, minbucket=2,
                         xval = 5, cp = 0.00017, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 #cp = 0.0002 has decent size
@@ -54,7 +54,7 @@ f2 <- as.formula(paste("label ~", paste(n[!n %in% c("campaignMov", "campaignValu
                                                     "TabSwitchPer.product.", "TimeToFirst.cart.", "SecondsSinceFirst.cart.", "SecondsSinceTabSwitch","TabSwitchOnLastScreenCount", "treatment")], collapse = " + ")))
 f2
 
-tree_b_t.1 <- causalTree(f2, data = trainData_b_t, treatment = treatment,
+tree_b_t.1 <- causalTree(f2, data = trainData_b_t2, treatment = treatment,
                          split.Rule = "TOT", cv.option = "TOT",  cv.Honest = F, split.Bucket = F, minbucket=2,
                          xval = 5, cp = 0.0004, minsize = 30)   # xval = 5, , propensity = 0.5, split.Honest = T
 
@@ -68,7 +68,7 @@ opfit <- prune(tree_b_t, cp=opcp)
 rpart.plot(opfit) ## this procedure always gives only one node for regression >> nonsense
 
 
-pred_cT_b_t <- predict(object = tree_b_t, newdata = testData_b_t)
+pred_cT_b_t <- predict(object = tree_b_t, newdata = testData_b_t2)
 # The predictions differentiate between the treatment and control condition
 # pr.y1_ct1 gives an estimate for a person to convert when in the treatment group
 # pr.y1_ct0 gives an estimate for a person to convert when in the control group
@@ -90,7 +90,7 @@ head(pred_mens)
 # table(trainData$z_var2)
 # table(testData$z_var2)
 
-names(trainData_b_t)
+names(trainData_b_t2)
 
 trainData_all[,-which(names(trainData_all) %in% c("conversion","spend","treatment", "segment","history_segment","zip_code","channel"))]
 
@@ -106,13 +106,13 @@ trainData_all[,-which(names(trainData_all) %in% c("conversion","spend","treatmen
 summary(upliftRF_hllstrm)
 
 
-n <- names(trainData_b_t)
+n <- names(trainData_b_t2)
 
 f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment")], collapse = " + ")))
 f3
 
-upliftRF_b_t <- upliftRF(f3,
-                          data = trainData_b_t,
+upliftRF_b_t2 <- upliftRF(f3,
+                          data = trainData_b_t2,
                           mtry = 10,
                           ntree = 1000,
                           split_method = "KL",
@@ -150,13 +150,13 @@ head(pred_mens)
 summary(upliftRF_hllstrm)
 
 
-n <- names(trainData_b_t)
+n <- names(b_t.learn)
 
 f4 <- as.formula(paste("var_z ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
 f4
 
-upliftRF_b_t <- upliftRF(f3,
-                          data = trainData_b_t,
+upliftRF_b_t2 <- upliftRF(f3,
+                          data = b_t.learn,
                           mtry = 10,
                           ntree = 1000,
                           split_method = "KL",
@@ -171,10 +171,10 @@ names(trainData_all)
 str(trainData_all)
 
 
-cf_hillstrom <- causal_forest(
-  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
-  Y = trainData_all$spend,
-  W = trainData_all$treatment,
+cf_b_t <- causal_forest(
+  X = b_t.learn, #excluding factors (dummified above) and Y-Variables
+  Y = b_t.learn$checkoutAmount,
+  W = b_t.learn$treatment,
   num.trees = 1000,
   honesty = TRUE,
   honesty.fraction = NULL,
@@ -184,11 +184,12 @@ cf_hillstrom <- causal_forest(
 
 summary(cf_hillstrom)
 
-cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
-                              estimate.variance = TRUE)
+cf_b_t.preds <- predict(object = cf_b_t, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+                        newdata=b_t.test_small,
+                        estimate.variance = TRUE)
 
 # Causal Boosting---------------------------------------------------------
+
 
 # library("parallelMap")
 # parallelStartSocket(3) #level = "causalLearning::causalBoosting"
@@ -196,42 +197,34 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in 
 # RNGkind("L'Ecuyer-CMRG")
 # clusterSetRNGStream(iseed = 1234567)
 
-# indx <- t(data.frame(lapply(trainData_b_t, function(x) any(is.na(x)))))
+# indx <- t(data.frame(lapply(trainData_b_t2, function(x) any(is.na(x)))))
 # names(indx)
 # names(indx[,])
 # indx[indx[,1=="TRUE"],]
 #names of columns that contain is.na==TRUE
 
 
+system.time(cv.cb_b_t <- cv.causalBoosting(b_t.learn,
+                               tx=b_t.learn$treatment,
+                               y=b_t.learn$checkoutAmount,
+                               num.trees=500,
+                               eps=0.3))
 
-# cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
-#                                      tx=trainData_all$treatment, 
-#                                      y=trainData_all$spend,
-#                                      num.trees=500,
-#                                      eps=0.3)
-# 
-# saveRDS(cb_hillstrom, "cb_hillstrom.rds")
-# cb_hillstrom <- readRDS("cb_hillstrom.rds")
-# 
-# summary(cb_hillstrom)
-# 
-# 
-# cb_hllstrm_pred <- predict(cb_hillstrom, 
-#                            newx = testData_all[, -c(2,6,8,9,11,12,13)], 
-#                            type = "treatment.effect",
-#                            num.trees = 500,
-#                            honest = FALSE,
-#                            naVal = 0)
+saveRDS(cv.cb_b_t, "cv.cb_b_t.rds")
+cv.cb_b_t <- readRDS("cv.cb_b_t.rds")
 
-test <- trainData_b_t[,apply(trainData_b_t, 2, anyNA)==FALSE]
-
-causalboost_b_t <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
-                                                                  "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
-                                  tx=test$treatment, 
-                                  y=test$checkoutAmount)
+summary(cv.cb_b_t)
 
 
-parallelStop() 
+cb_b_t.pred <- predict(cv.cb_b_t,
+                       newx = b_t.test_small,
+                       type = "treatment.effect",
+                       num.trees = 500,
+                       honest = FALSE,
+                       naVal = 0)
+
+
+#parallelStop() 
 
 
 

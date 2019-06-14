@@ -5,7 +5,7 @@
 # install_github("susanathey/causalTree")
 # install_github("saberpowers/causalLearning")
 # install.packages("tools4uplift")
-
+install.packages("randomForest")
 
 
 library(devtools)
@@ -16,7 +16,7 @@ library("uplift")
 library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
-
+library(randomForest)
 
 
 
@@ -167,14 +167,31 @@ summary(upliftRF_men)
 
 # CausalForest ------------------------------------------------------------
 
+library(doParallel)
+registerDoParallel(cores=4)
+
+cf_f_a <- foreach(ntree=rep(250, 4), .combine=randomForest::combine,
+                  .multicombine=TRUE, .packages='grf') %dopar% {
+                    causal_forest(
+                      X = f_a.train_small, #excluding factors (dummified above) and Y-Variables
+                      Y = f_a.train_small$checkoutAmount,
+                      W = f_a.train_small$treatment,
+                      num.trees = ntree,
+                      honesty = TRUE,
+                      honesty.fraction = NULL,
+                      tune.parameters=TRUE,
+                      seed = 1839
+                    )
+                  }
+
 names(trainData_all)
 str(trainData_all)
 
 
-cf_hillstrom <- causal_forest(
-  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
-  Y = trainData_all$spend,
-  W = trainData_all$treatment,
+cf_f_a <- causal_forest(
+  X = f_a.train_small, #excluding factors (dummified above) and Y-Variables
+  Y = f_a.train_small$checkoutAmount,
+  W = f_a.train_small$treatment,
   num.trees = 1000,
   honesty = TRUE,
   honesty.fraction = NULL,
@@ -184,11 +201,12 @@ cf_hillstrom <- causal_forest(
 
 summary(cf_hillstrom)
 
-cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
-                              estimate.variance = TRUE)
+cf_f_a.preds <- predict(object = cf_f_a, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+                        newdata=f_a.test_small,
+                        estimate.variance = TRUE)
 
 # Causal Boosting---------------------------------------------------------
+
 
 # library("parallelMap")
 # parallelStartSocket(3) #level = "causalLearning::causalBoosting"
@@ -203,35 +221,27 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in 
 #names of columns that contain is.na==TRUE
 
 
+cv.cb_f_a <- cv.causalBoosting(f_a.train_small,
+                               tx=f_a.train_small$treatment,
+                               y=f_a.train_small$checkoutAmount,
+                               num.trees=500,
+                               eps=0.3)
 
-            # cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
-            #                                      tx=trainData_all$treatment, 
-            #                                      y=trainData_all$spend,
-            #                                      num.trees=500,
-            #                                      eps=0.3)
-            # 
-            # saveRDS(cb_hillstrom, "cb_hillstrom.rds")
-            # cb_hillstrom <- readRDS("cb_hillstrom.rds")
-            # 
-            # summary(cb_hillstrom)
-            # 
-            # 
-            # cb_hllstrm_pred <- predict(cb_hillstrom, 
-            #                            newx = testData_all[, -c(2,6,8,9,11,12,13)], 
-            #                            type = "treatment.effect",
-            #                            num.trees = 500,
-            #                            honest = FALSE,
-            #                            naVal = 0)
+saveRDS(cv.cb_f_a, "cv.cb_f_a.rds")
+cv.cb_f_a <- readRDS("cv.cb_f_a.rds")
 
-test <- trainData_f_a2[,apply(trainData_f_a2, 2, anyNA)==FALSE]
-
-causalboost_f_a <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
-                                                                  "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
-                                  tx=test$treatment, 
-                                  y=test$checkoutAmount)
+summary(cv.cb_f_a)
 
 
-parallelStop() 
+cb_f_a.pred <- predict(cv.cb_f_a,
+                       newx = f_a.test_small,
+                       type = "treatment.effect",
+                       num.trees = 500,
+                       honest = FALSE,
+                       naVal = 0)
+
+
+#parallelStop() 
 
 
 

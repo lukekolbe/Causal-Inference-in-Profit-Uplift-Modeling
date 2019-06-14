@@ -108,7 +108,7 @@ summary(upliftRF_hllstrm)
 
 n <- names(trainData_f_b2)
 
-f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
+f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment")], collapse = " + ")))
 f3
 
 upliftRF_f_b2 <- upliftRF(f3,
@@ -145,16 +145,36 @@ head(pred_mens)
 
 
 
+# UpliftRF transformed target ---------------------------------------------
+
+summary(upliftRF_hllstrm)
+
+
+n <- names(trainData_f_b2)
+
+f4 <- as.formula(paste("var_z ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","epochSecond","treatment")], collapse = " + ")))
+f4
+
+upliftRF_f_b2 <- upliftRF(f3,
+                          data = trainData_f_b2,
+                          mtry = 10,
+                          ntree = 1000,
+                          split_method = "KL",
+                          minsplit = 50,
+                          verbose = TRUE)
+summary(upliftRF_men)
+
+
 # CausalForest ------------------------------------------------------------
 
 names(trainData_all)
 str(trainData_all)
 
 
-cf_hillstrom <- causal_forest(
-  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
-  Y = trainData_all$spend,
-  W = trainData_all$treatment,
+cf_f_b <- causal_forest(
+  X = f_b.train_small, #excluding factors (dummified above) and Y-Variables
+  Y = f_b.train_small$checkoutAmount,
+  W = f_b.train_small$treatment,
   num.trees = 1000,
   honesty = TRUE,
   honesty.fraction = NULL,
@@ -164,11 +184,12 @@ cf_hillstrom <- causal_forest(
 
 summary(cf_hillstrom)
 
-cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
-                              estimate.variance = TRUE)
+cf_f_b.preds <- predict(object = cf_f_b, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
+                        newdata=f_b.test_small,
+                        estimate.variance = TRUE)
 
 # Causal Boosting---------------------------------------------------------
+
 
 # library("parallelMap")
 # parallelStartSocket(3) #level = "causalLearning::causalBoosting"
@@ -182,17 +203,34 @@ cf_hillstrom_preds <- predict(object = cf_hillstrom, ### buggy, throws Error in 
 # indx[indx[,1=="TRUE"],]
 #names of columns that contain is.na==TRUE
 
-test <- trainData_f_b2[,apply(trainData_f_b2, 2, anyNA)==FALSE]
+
+system.time(cv.cb_f_b <- cv.causalBoosting(f_b.train_small,
+                               tx=f_b.train_small$treatment,
+                               y=f_b.train_small$checkoutAmount,
+                               num.trees=500,
+                               eps=0.3))
+
+saveRDS(cv.cb_f_b, "cv.cb_f_b.rds")
+cv.cb_f_b <- readRDS("cv.cb_f_b.rds")
+
+summary(cv.cb_f_b)
+
+
+cb_f_b.pred <- predict(cv.cb_f_b,
+                       newx = f_b.test_small,
+                       type = "treatment.effect",
+                       num.trees = 500,
+                       honest = FALSE,
+                       naVal = 0)
+
+
+#parallelStop() 
 
 
 
-causalboost_f_b <- causalBoosting(test[,-which(names(test) %in% c("campaignMov", "campaignValue","checkoutDiscount","controlGroup","converted","checkoutAmount", "treatment",
-                                                                  "epochSecond","label","ViewedBefore.cart.","TabSwitchPer.product.","TimeToFirst.cart.","SecondsSinceFirst.cart.","SecondsSinceTabSwitch","TabSwitchOnLastScreenCount"))],
-                                  tx=test$treatment, 
-                                  y=test$checkoutAmount)
+# BART --------------------------------------------------------------------
 
 
-parallelStop() 
 
 
 # Performance Assessment for Uplift Models  ---------------------------------------------

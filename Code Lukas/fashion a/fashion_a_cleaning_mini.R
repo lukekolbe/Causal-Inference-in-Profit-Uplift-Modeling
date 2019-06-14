@@ -37,6 +37,10 @@ f_a$z_var <- 0
 f_a$z_var <- ifelse(f_a$label>0, 1, 0)
 summary(f_a$z_var)
 
+# Drop columns with no information
+f_a <- f_a[,-which(names(f_a) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
+                                     "TimeToFirst.cart."))]
+
 # Setting specific Column Null Values to 0 (all at once):
 varlist=c("InitCartNonEmpty","FrequencyOfPreviousSessions")
 f_a[, varlist][is.na(f_a[,varlist])] = 0
@@ -93,7 +97,9 @@ aggregate(checkoutAmount ~ treatment, data=f_a.test_small, mean)[2,2] - aggregat
 
 
 # SMOTE SAMPLING ---------------------------------------------
-#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3648438/pdf/1471-2105-14-106.pdf
+# https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3648438/pdf/1471-2105-14-106.pdf
+# needs work: https://beckernick.github.io/oversampling-modeling/
+### split of a test/validation chunk, then do SMOTE on the training data, learn, predict on non-smote'd test data
 
 n <- names(f_a.train_small)
 f_smote_f_a <- as.formula(paste("converted ~",paste(n[!n %in% c("converted","checkoutAmount","treatment","label","z_var")], collapse = " + ")))

@@ -37,6 +37,10 @@ f_b$z_var <- 0
 f_b$z_var <- ifelse(f_b$label>0, 1, 0)
 summary(f_b$z_var)
 
+# Drop columns with no information
+f_b <- f_b[,-which(names(f_b) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
+                                     "TimeToFirst.cart."))]
+
 # Setting specific Column Null Values to 0 (all at once):
 varlist=c("InitCartNonEmpty","FrequencyOfPreviousSessions")
 f_b[, varlist][is.na(f_b[,varlist])] = 0
