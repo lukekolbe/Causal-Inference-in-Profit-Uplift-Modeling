@@ -8,6 +8,7 @@
 install.packages("DMwR")
 install.packages("mlbench")
 install.packages("randomForest")
+install.packages("splitstackshape")
 
 
 library(devtools)
@@ -21,6 +22,7 @@ library(tools4uplift)
 library("DMwR") #for SMOTE
 library(mlbench)
 library(randomForest)
+library(splitstackshape)
 
 
 set.seed(111)
@@ -30,31 +32,15 @@ b_t <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/
 b_t <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/books and toys/BooksAndToys.csv", sep=",")
 b_t <- read.csv("H:\\Applied Predictive Analytics\\Data\\books and toys\\BooksAndToys.csv", sep=",")
 
+# variable transformation -------------------------------------------------
+
+b_t$z_var <- 0
+b_t$z_var <- ifelse(b_t$label>0, 1, 0)
+summary(b_t$z_var)
+
 # Decriptive Analysis ------------------
-
-
-
-table(b_t$campaignValue)
-table(b_t$campaignUnit, b_t$campaignValue, b_t$controlGroup)
-
-prop.table(table(b_t$checkoutAmount>0)) #14.4% have a positive checkout amount 
-prop.table(table(b_t$checkoutDiscount>0)) #6.7% received a Discount (includes both treatment and control group)
-prop.table(table(b_t$checkoutDiscount>0, b_t$controlGroup)) 
-# [69.5% treatment=1,discountAmount=0]; [23.8% treatment=0,discountAmount=0]; [5.3% treatment=1,discountAmount>0], [1.4% treatment=0,discountAmount>0]
-
-
+str(b_t)
 table(b_t$controlGroup)
-with(b_t, prop.table(table(checkoutDiscount>0, controlGroup), margin=1)) # 25.5% of treatment group members (35533) received discount, 20.4% (7933) of control group members
-with(b_t, table(checkoutDiscount>0, controlGroup))
-
-aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[2,2]
-#the treatment gives an average uplift across the whole population of 0.4892036
-summary(aov(checkoutAmount  ~ controlGroup, data=b_t)) # the differences in checkout amount are statistically significant!
-t.test(checkoutAmount ~ controlGroup, data=b_t) # the differences in checkout amount are statistically significant!
-
-
-
-
 
 table(b_t$campaignMov, b_t$campaignValue) # minimum order value is different depending on campaignValue (but consistent within value-segments)
 # Idee: uplift (5 Euro Gutschein vs 20 Euro Gutschein ?)
@@ -64,25 +50,39 @@ with(b_t, prop.table(table(campaignValue,controlGroup), margin=1)) # proportions
 summary(aov(campaignValue  ~ controlGroup, data=b_t)) 
 # there are three campaignValues with very different segment size, but they show no difference in treatment/control population >> deleting some data (campaignValue other than "2000" does not shift the distribution)
 
+#with(b_t, prop.table(table(converted,controlGroup, campaignValue), margin=1))
+
+table(b_t$checkoutDiscount) #no checkout discounts in the data?!
+prop.table(table(b_t$checkoutAmount>0, b_t$controlGroup)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
 
 
-# CLEANING ----------------------------------------------------------------
+treatment_uplift_a <- aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[2,2]
+treatment_uplift_a #the treatment gives an average uplift across the whole population of 0.4892036
+summary(aov(checkoutAmount  ~ controlGroup, data=b_t)) # the differences in checkout amount are statistically significant!
+t.test(checkoutAmount ~ controlGroup, data=b_t) # the differences in checkout amount are statistically significant!
 
-# Drop columns with no information
+names(b_t)
+
+table(b_t$campaignMov)
+
+table(b_t$checkoutAmount>=105,b_t$controlGroup)#14.800 people qualified for actually using the discount of 20â¬ through achieving the minimum order value
+with(b_t, prop.table(table(checkoutAmount>=105,controlGroup), margin=1)) # 25% of the treatment group have a checkout amount >=105 and 22.8% of the control group do
+
+# Drop columns with no information----------------------------------------------------------------
 b_t <- b_t[,-which(names(b_t) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
-                                     "TabSwitchPer.product.", "TimeToFirst.cart.","TabSwitchOnLastScreenCount","TotalTabSwitchCount"))] 
-#summary(b_t)
+                                     "TimeToFirst.cart."))]
 
 #NA Columns ---------------------------------------------------
-# Identify NA Columns
-names(which(sapply(b_t, anyNA)))
-# Check % of NA Columns
-colMeans(is.na(b_t))
-# Drop the high NA percentage Columns
-cols.dont.want=c("TimeSinceOn.search.","TimeSinceOn.sale.","TimeToFirst.search.","TimeToFirst.cart.",
-                 "TimeToFirst.sale.","SecondsSinceFirst.search.","SecondsSinceFirst.cart.","SecondsSinceFirst.sale.",
-                 "TimeToCartAdd","SecondsSinceTabSwitch") # get rid of these
-b_t=b_t[,! names(b_t) %in% cols.dont.want, drop=F]
+# # Identify NA Columns
+# names(which(sapply(b_t, anyNA)))
+# # Check % of NA Columns
+# colMeans(is.na(b_t))
+# # Drop the high NA percentage Columns
+# cols.dont.want=c("TimeSinceOn.search.","TimeSinceOn.sale.","TimeToFirst.search.","TimeToFirst.cart.",
+#                  "TimeToFirst.sale.","SecondsSinceFirst.search.","SecondsSinceFirst.cart.","SecondsSinceFirst.sale.",
+#                  "TimeToCartAdd","SecondsSinceTabSwitch",
+#                  "TotalTabSwitchCount", "TabSwitchOnLastScreenCount", "TabSwitchPer.product.") # get rid of these because at least in ONE dataset the NA ration is >0.8
+# b_t=b_t[,! names(b_t) %in% cols.dont.want, drop=F]
 # Setting specific Column Null Values to 0, works for specificly defined columns
 #b_t$InitCartNonEmpty <- ifelse(b_t$InitCartNonEmpty == c("NA"), "0", b_t$InitCartNonEmpty)
 #colMeans(is.na(b_t)) #check --> worked
@@ -94,12 +94,6 @@ b_t=b_t[,! names(b_t) %in% cols.dont.want, drop=F]
 varlist=c("InitCartNonEmpty","FrequencyOfPreviousSessions")
 b_t[, varlist][is.na(b_t[,varlist])] = 0
 
-
-#mean imputation for low NA percentage Columns
-#colMeans(is.na(b_t))
-#summary(b_t)
-#str(b_t)
-
 for(i in 1:ncol(b_t)){
   b_t[is.na(b_t[,i]), i] <- median(b_t[,i], na.rm = TRUE)
 }
@@ -108,40 +102,30 @@ for(i in 1:ncol(b_t)){
 b_t$treatment = numeric(nrow(b_t))
 b_t$treatment = ifelse(b_t$controlGroup==0, 1, 0)
 
-# b_t$campaignValue[b_t$campaignValue > 15] <- b_t$campaignValue[b_t$campaignValue > 15]/100 # correcting cases where discount precentages are given in two-digits instead of four (e.g. 15 instead of 1500)
-# #bt$campaignValue <- bt$campaignValue/100
-# b_t$basketValue <- bt$checkoutAmount + bt$checkoutDiscount
-# b_t$discountPercentage  <- bt$checkoutDiscount / bt$basketValue
-
-
-
 # library(lubridate)
 # # create 12-factor variable (months) for seasonality, maybe even seasons (4) out of epochSecond
-# 
 # b_t$month=as.factor(month(as_datetime(b_t$epochSecond)))
 # table(b_t$month)
 # str(b_t$month)
 
-
-
-# Seperating the different treatments --> Later test with 2-Model-Approach if treatment effects are higher for different treatments
-# b_t_5 <- b_t[b_t$campaignValue==500,] 
-# b_t_0 <- b_t[b_t$campaignValue==0,]
-#b_t <- b_t[b_t$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
-
-# Dropping further columns, we do not need anymore
-b_t <- b_t[,-which(names(b_t) %in% c("controlGroup","campaignMov","campaignValue", "NormalizedCartSum"))] 
-
-
 # correlation test and removal of highly correlated variables ------------------
 
+# Dropping further columns, we do not need anymore
+#b_t <- b_t[,-which(names(b_t) %in% c("controlGroup","campaignMov","campaignValue","label","NormalizedCartSum"))] 
 
 # find and reduce attributes that are highly corrected (ideally >0.75)
-
 correlationMatrix <- cor(b_t[,-which(names(b_t) %in% c("converted", "treatment","checkoutAmount"))]) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
 # summarize the correlation matrix
 #print(correlationMatrix)
 highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE)
+
+#### RESULT OF CORRELATION CHECK IN b_t; F_B; B_T DATA: 17 FEATURES WITH HIGH CORRELATION POTENTIAL
+# c("HoursSinceFirstVisit","IsMobile","RecencyOfPreviousSessionInHrs",
+# "SecondsFor.3.","SecondsSinceFirst.overview.","SecondsSinceFirst.product.",
+# "SecondsSincePrevious","SessionTimeInSeconds","targetViewCount",
+# "TimeSinceLastVisit","TimeSinceOn.overview.","TimeToFirst.product.",
+# "TotalClickCount","ViewCount","ViewsOn.overview.",
+# "ViewsOn.product.","targetViewCount",)
 
 b_t <- b_t[,-which(names(b_t) %in% c("HoursSinceFirstVisit","IsMobile","RecencyOfPreviousSessionInHrs",
                                      "SecondsFor.3.","SecondsSinceFirst.overview.","SecondsSinceFirst.product.",
@@ -149,32 +133,88 @@ b_t <- b_t[,-which(names(b_t) %in% c("HoursSinceFirstVisit","IsMobile","RecencyO
                                      "TimeSinceLastVisit","TimeSinceOn.overview.","TimeToFirst.product.",
                                      "TotalClickCount","ViewCount","ViewsOn.overview.",
                                      "ViewsOn.product.","targetViewCount"))]
+### this list is the results of comparing which columns were flagged via findCorrelation() in all three datasets, see data_correlation_selection.xlsx
+#cor_complete <- cor(b_t)
+
+
+# final selection after comparing importances -----------------------------
+### this makes any code below obsolete when creating samples for actual model building
+#comparing upliftRF, RFE, NIV values, building average ranks, picking top 20
+
+b_t <- b_t[,which(names(b_t) %in% c("checkoutAmount","converted","treatment","label","z_var","TimeSpentOn.overview.","epochSecond",
+                                    "TimeToFirst.overview.","TimeSpentOn.product.",
+                                    "DurationLastVisitInSeconds","PreviousVisitCount",
+                                    "TimeSinceOn.product.","ViewCountLastVisit","SecondsSinceClick",
+                                    "FrequencyOfPreviousSessions","NumberOfDifferent.product.",
+                                    "ScreenWidth","ClicksPer.product.","NumberOfDifferent.overview.",
+                                    "PageIs.product.","DayOfWeek","RepeatCount","PageIs.overview.",
+                                    "HourOfDay","InitPageWas.home."))]
 
 
 
-# 1ST ROUND SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
+# classic stratification from BADS 1st round ----------------------------------------
 
-train_indices_b_t <- list()
+# train_indices_b_t <- list()
+# 
+# combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
+# xtabs(~converted+treatment, b_t)
+# sample_size_b_t <- as.numeric(xtabs(~converted+treatment, b_t))
+# 
+# for(i in 1:4){
+#   train_indices_b_t[[i]] <- sample(which(b_t$converted == combinations$Conversion[i] &
+#                                            b_t$treatment == combinations$Treatment[i])
+#                                    , size = round(0.15*sample_size_b_t[i]), replace=FALSE) 
+# } 
+# 
+# 
+# trainIndex_b_t <- c(train_indices_b_t, recursive=TRUE)
+# 
+# trainData_small <- b_t[trainIndex_b_t,] # temporarily the learning data is only a small partition!
 
-combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1))) # treatment is ordered 1,0 compared to hillstrÃÂ¶m data because the variable indicates control group membership
-xtabs(~converted+treatment, b_t)
-sample_size_b_t <- as.numeric(xtabs(~converted+treatment, b_t))
 
-for(i in 1:4){
-  train_indices_b_t[[i]] <- sample(which(b_t$converted == combinations$Conversion[i] &
-                                           b_t$treatment == combinations$Treatment[i])
-                                   , size = round(0.6*sample_size_b_t[i]), replace=FALSE) 
-} 
+# SAMPLE SPLITTING AND STRATIFICATION 2ND ROUND (FOR PRE-TRAINING) ---------------------------------------------------
 
+# train_indices_b_t2 <- list()
+# 
+# #combinations_b_t2 <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(1,0))) # treatment is ordered 1,0 compared to hillstrÃ¶m data because the variable indicates control group membership
+# sample_size_b_t2 <- as.numeric(xtabs(~converted+treatment, trainData_small))
+# 
+# 
+# for(i in 1:4){
+#   train_indices_b_t2[[i]] <- sample(which(trainData_small$converted == combinations$Conversion[i] &
+#                                             trainData_small$treatment == combinations$Treatment[i])
+#                                     , size = round(0.5*sample_size_b_t2[i]), replace=FALSE) 
+# } 
+# 
+# 
+# trainIndex_b_t2 <- c(train_indices_b_t2, recursive=TRUE)
+# 
+# trainData_b_t2 <- trainData_small[-trainIndex_b_t2,] # temporarily the train data is only a small partition!
+# testData_b_t2  <- trainData_small[trainIndex_b_t2,]
+# 
+# table(trainData_b_t2$checkoutAmount>0, trainData_b_t2$treatment)
+# 
+# prop.table(table(trainData_small$converted))
+# prop.table(table(trainData_b_t2$converted))
+# prop.table(table(b_t$converted))
+# 
+# summary(aov(checkoutAmount  ~ treatment, data=trainData_b_t2)) # checking statistical significance of the differences in checkout amount
+# t.test(checkoutAmount ~ treatment, data=trainData_b_t2) # checking statistical significance of the differences in checkout amount
+# 
+# #### WHY IS THE ATE SO DIFFERENT BETWEEN TEST AND TRAIN DATA?! LOOKS LIKE AN ERROR IN STRATIFICATION!!!!
+# aggregate(checkoutAmount ~ treatment, data=b_t, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=b_t, mean)[1,2] 
+# aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_small, mean)[1,2] 
+# aggregate(checkoutAmount ~ treatment, data=trainData_b_t2, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=trainData_b_t2, mean)[1,2] 
+# aggregate(checkoutAmount ~ treatment, data=testData_b_t2, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=testData_b_t2, mean)[1,2] 
+# 
+# #total population uplift is slightly lower than in the complete sample
+# 
+# 
 
-trainIndex_b_t <- c(train_indices_b_t, recursive=TRUE)
-
-trainData_b_t <- b_t[trainIndex_b_t,] # temporarily the learning data is only a small partition!
-testData_b_t <- b_t[-trainIndex_b_t,] # temporarily the learning data is only a small partition!
-
-# FEATURE SELECTION -------------------------------------------------------
+# RFE FEATURE SELECTION -------------------------------------------------------
 #http://topepo.github.io/caret/recursive-feature-elimination.html#rfe
 #https://machinelearningmastery.com/feature-selection-with-the-caret-r-package/
+#https://stackoverflow.com/questions/32290513/making-recursive-feature-elimination-using-caret-parallel-on-windows
 
 set.seed(7)
 # load the library
@@ -182,8 +222,8 @@ library(mlbench)
 library(caret)
 
 library(doParallel) 
-cl2 <- makeCluster(8, type='PSOCK')
-registerDoParallel(cl2)
+cl <- makeCluster(8, type='PSOCK')
+registerDoParallel(cl)
 
 # load the data
 
@@ -200,16 +240,17 @@ control <- rfeControl(functions=rfFuncs, method="cv", number=8, seeds=seeds, sav
 
 # run the RFE algorithm
 set.seed(1)
-# str(trainData_f_a2)
-names(trainData_b_t)
-# summary(trainData_f_a2$label)
-system.time(rfe_b_t.results2 <- rfe(trainData_b_t[,-c(2,3,4,55)], trainData_b_t[,4], sizes=subsets, rfeControl=control))
-
+# str(trainData_b_t2)
+# names(trainData_b_t2)
+# summary(trainData_b_t2$label)
+system.time(rfe_b_t.results2 <- rfe(trainData_b_t2[,-c(2,3,4,55)], trainData_b_t2[,3], sizes=subsets, rfeControl=control))
+# on label
 
 saveRDS(rfe_b_t.results2, "rfe_b_t.results_label.rds")
 
-stopCluster(cl2)
+stopCluster(cl)
 
+rfe_b_t <- readRDS("/Volumes/kolbeluk/rfe_b_t.results.rds")
 
 # summarize the results
 print(rfe_b_t.results2)
@@ -217,12 +258,26 @@ print(rfe_b_t.results2)
 predictors(rfe_b_t.results2)
 # plot the results
 plot(rfe_b_t.results2, type=c("g", "o"))
+rfe_var <- rfe_f_b$variables
+rfe_var[rfe_var$Variables==15,]
+
+
+
+# Uplift NIV --------------------------------------------------------------
+
+
+n <- names(b_t)
+f_niv_fa <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment")], collapse = " + ")))
+
+fa_niv <- niv(f_niv_fa, b_t, subset=NULL, na.action = na.pass, B = 10, direction = 1, 
+              nbins = 10, continuous = 4, plotit = TRUE)
+
+fa_niv$niv
+fa_niv$nwoe
+
 
 
 # Average Treatment Effect (ATE) ---------------------------------------------------
-
-experiment <- table(list("Control" = trainData_b_t2$controlGroup, "Converted" = trainData_b_t2$converted))
-experiment
 
 # The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
 # (((which is plausible because of the random sampling)))
@@ -230,9 +285,10 @@ mean(as.numeric(trainData_b_t2$converted[trainData_b_t2$controlGroup==0])) - mea
 mean(trainData_b_t2$checkoutAmount[trainData_b_t2$controlGroup==0]) - mean(trainData_b_t2$checkoutAmount[trainData_b_t2$controlGroup==1])
 
 # or alternatively:
+experiment <- table(list("Control" = trainData_b_t2$controlGroup, "Converted" = trainData_b_t2$converted))
+experiment
+
 (experiment[1,2]/sum(experiment[1,]) ) - (experiment[2,2]/sum(experiment[2,]) )
-
-
 
 
 # DATA SAMPLE INVESTIGATION (DOES NOT WORK)-----------------------------------------------
@@ -257,22 +313,54 @@ mean(trainData_b_t2$checkoutAmount[trainData_b_t2$controlGroup==0]) - mean(train
 # cb$overall
 
 
-# SMOTE SAMPLING TRYOUT ---------------------------------------------
+
+# SMOTE SAMPLING ---------------------------------------------
+
+
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3648438/pdf/1471-2105-14-106.pdf
 
 # ctrl <- trainControl(method = "repeatedcv",
-#                      number = 10,
-#                      repeats = 10,
+#                      number = 5,
+#                      repeats = 5,
 #                      verboseIter = FALSE,
 #                      sampling = "smote")
 # 
 # set.seed(42)
-# model_rf_smote <- caret::train(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel,
-#                                data = trainData_mens,
-#                                method = "glm",
-#                                preProcess = c("scale", "center"),
+# model_rf_smote <- caret::train(f_smote_fa,
+#                                data = b_t.train_small,
+#                                method = "rpart",
+#                                #preProcess = c("scale", "center"),
 #                                trControl = ctrl)
 
 
-test <- SMOTE()
+n <- names(b_t.train_small)
+f_smote_b_t <- as.formula(paste("converted ~",paste(n[!n %in% c("converted","checkoutAmount","treatment","label","z_var")], collapse = " + ")))
 
+b_t.train_small$converted <- as.factor(b_t.train_small$converted)
+b_t.train_SMOTE <- SMOTE(f_smote_b_t,b_t.train_small,perc.over = 400,perc.under = 200)
 
+# checking balance
+prop.table(table(b_t.train_small$converted))
+prop.table(table(test$converted))
+
+prop.table(table(test$converted))
+aggregate(checkoutAmount ~ treatment, data=b_t.test_small, mean)
+aggregate(checkoutAmount ~ treatment, data=test, mean)
+aggregate(checkoutAmount ~ treatment, data=b_t, mean)
+
+aggregate(converted ~ treatment, data=b_t.test_small, mean)
+aggregate(converted ~ treatment, data=test, mean)
+aggregate(converted ~ treatment, data=b_t, mean)
+
+aggregate(checkoutAmount ~ treatment, data=b_t.test_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=b_t.test_small, mean)[1,2] 
+with(test, prop.table(table(treatment,converted), margin=2)) 
+with(test, prop.table(table(treatment,converted), margin=1))
+
+with(b_t.test_small, prop.table(table(treatment,converted), margin=2)) 
+with(b_t.test_small, prop.table(table(treatment,converted), margin=1))
+
+t.test(checkoutAmount ~ treatment, data=b_t.test_small)
+summary(aov(converted  ~ treatment, data=b_t.test_small))
+
+t.test(checkoutAmount ~ treatment, data=test)
+summary(aov(as.numeric(converted)  ~ treatment, data=test))

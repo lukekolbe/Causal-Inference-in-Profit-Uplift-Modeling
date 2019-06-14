@@ -14,15 +14,14 @@ fb_rfe_amount <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~C
 
 
 
-fb_urf <- readRDS("/Volumes/kolbeluk/upliftRF_f_b2_new.rds")
-fa_urf <- readRDS("/Volumes/kolbeluk/upliftRF_f_a2_new.rds")
-
-fa_ctree <- readRDS("/Volumes/kolbeluk/tree_f_a1.new.rds")
-summary(fa_ctree)
-fa_ctree_importance <- data.frame(fa_ctree$variable.importance)
-fa_ctree_importance
-
-summary(bt_rfe)
+#fb_urf <- readRDS("/Volumes/kolbeluk/upliftRF_f_b2_new.rds")
+#fa_urf <- readRDS("/Volumes/kolbeluk/upliftRF_f_a2_new.rds")
+#fa_ctree <- readRDS("/Volumes/kolbeluk/tree_f_a1.new.rds")
+# summary(fa_ctree)
+# fa_ctree_importance <- data.frame(fa_ctree$variable.importance)
+# fa_ctree_importance
+# 
+# summary(bt_rfe)
 
 
 # summarize the results
@@ -193,8 +192,60 @@ averaged_all_amount <- ddply(subset(all_imps_amount, Variables == 51),
                             function(x) c(Mean = mean(x$Overall),
                                           sd = sd(x$Overall)))
 
-averaged_all_amount$resamp_rank <- sort(averaged_all_amount$Mean)
+averaged_all_amount$resamp_rank <- rank(averaged_all_amount$Mean)
 
 sort(averaged_all_amount$var[averaged_all_amount$resamp_rank <= 51])
 
+###
+
+averaged_all_amount$absolutes <- abs(averaged_all_amount$Mean)
+averaged_all_label$absolutes <- abs(averaged_all_label$Mean)
+
+sort(averaged_all_amount$absolutes)
+sort(averaged_all_label$absolutes)
+
+write_csv2(averaged_all_amount, "rfe_averaged_amount.csv")
+write_csv2(averaged_all_label, "rfe_averaged_label.csv")
+
+
+
+
+
+
+# correlation importances (after cleaning!) -------------------------------
+
+upliftRF_bt <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/UpliftRF results/upliftRF_b_t.rds")
+upliftRF_fa <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/UpliftRF results/upliftRF_f_a2_new.rds")
+upliftRF_fb <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/UpliftRF results/upliftRF_f_b2_new.rds")
+
+varImportance(upliftRF_bt)
+varImportance(upliftRF_fa)
+varImportance(upliftRF_fb)
+
+
+f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
+f_b  <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionB.csv", sep=",")
+b_t <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/books and toys/BooksAndToys.csv", sep=",")
+
+str(f_a)
+str(f_b)
+str(b_t)
+
+summary(b_t$ChannelIs.EMAIL.)
+summary(f_a$ChannelIs.EMAIL.)
+
+
+
+correlationMatrix_fa <- cor(f_a)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE)
+
+correlationMatrix_fb <- cor(f_b)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE)
+
+correlationMatrix_bt <- cor(b_t)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE)
+
+
+checkout_cor <- as.data.frame(cbind(fa=correlationMatrix_fa[,2],fb=correlationMatrix_fb[,2], bt=correlationMatrix_bt[,2]))
+write_csv2(checkout_cor, "checkout_cor.csv")
 
