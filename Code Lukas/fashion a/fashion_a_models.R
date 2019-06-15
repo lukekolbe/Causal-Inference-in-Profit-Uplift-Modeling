@@ -170,36 +170,34 @@ summary(upliftRF_men)
 library(doParallel)
 registerDoParallel(cores=4)
 
-cf_f_a <- foreach(ntree=rep(250, 4), .combine=randomForest::combine,
-                  .multicombine=TRUE, .packages='grf') %dopar% {
-                    causal_forest(
-                      X = f_a.train_small, #excluding factors (dummified above) and Y-Variables
-                      Y = f_a.train_small$checkoutAmount,
-                      W = f_a.train_small$treatment,
-                      num.trees = ntree,
-                      honesty = TRUE,
-                      honesty.fraction = NULL,
-                      tune.parameters=TRUE,
-                      seed = 1839
-                    )
-                  }
 
-names(trainData_all)
-str(trainData_all)
+# forests <- vector("list",4)
+# system.time(cf_f_a3 <- foreach(i=1:4, 
+#                                .combine=grf::merge_forests, .init=forests,
+#                                .multicombine=TRUE,.packages='grf') %dopar% {
+#                                  
+#                                  forests[i]<-causal_forest(
+#                                    X = f_a.train_small,
+#                                    Y = f_a.train_small$checkoutAmount,
+#                                    W = f_a.train_small$treatment,
+#                                    num.trees = 10,
+#                                    honesty = TRUE,
+#                                    honesty.fraction = NULL,
+#                                    seed = 1839
+#                                  )
+#                                }
+# )
 
 
 cf_f_a <- causal_forest(
-  X = f_a.train_small, #excluding factors (dummified above) and Y-Variables
+  X = f_a.train_small,
   Y = f_a.train_small$checkoutAmount,
   W = f_a.train_small$treatment,
   num.trees = 1000,
   honesty = TRUE,
   honesty.fraction = NULL,
-  tune.parameters=TRUE,
   seed = 1839
 )
-
-summary(cf_hillstrom)
 
 cf_f_a.preds <- predict(object = cf_f_a, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
                         newdata=f_a.test_small,
@@ -249,51 +247,51 @@ cb_f_a.pred <- predict(cv.cb_f_a,
 
 
 
-
-# Performance Assessment for Uplift Models  ---------------------------------------------
-
-# Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
-
-treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
-treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],"effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
-
-head(treatment_effect_groups, 10)
-
-# We cannot calculate the true treatment effect per person, but per group
-treatment_effect_groups$Decile <- cut(treatment_effect_groups$effect_estimate, breaks = 10, labels=FALSE)
-head(treatment_effect_groups)
-tail(treatment_effect_groups, 4)
-
-treatment_groups <- aggregate(treatment_effect_groups[,c("Conversion","effect_estimate")], 
-                              by=list("Decile"=treatment_effect_groups$Decile, "Treatment"=treatment_effect_groups$Treatment), 
-                              FUN=mean)
-# Conversion of customer without a treatment/coupon ranked by prediction
-{plot(treatment_groups$Conversion[10:1], type='l')
-  # Conversion of customer with a treatment/coupon ranked by prediction
-  lines(treatment_groups$Conversion[20:11], type='l', col="red")}
-## -> The uplift is the area between the curves
-treatment <- treatment_groups$Conversion[20:11] - treatment_groups$Conversion[10:1]
-
-# {uplift} has a function to calculate the Qini coefficient
-# Argument direction specifies whether we aim to maximize (P_treatment - P_control) or (P_control - P_treatment), or in other words
-# whether we aim for a high (purchase) probability or low (churn) probability
-
-perf_upliftRF <- uplift::performance(pr.y1_ct1 = pred_upliftRF[, 1], pr.y1_ct0 = pred_upliftRF[, 2], 
-                                     # with/without treatment prob.
-                                     y = testData$Conversion, ct = testData$Treatment, # outcome and treatment indicators
-                                     direction = 1, # maximize (1) or minimize (2) the difference? 
-                                     groups = 10)
-
-perf_upliftRF
-# Plot uplift random forest performance
-plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
-plot(treatment, col='red')
-
-# The Qini coefficient (derived from the Gini coefficient to measure the deviation from an equal distribution) is 
-# defined as the area between the incremental gains curve of the model and the area under the diagonal resulting from random targeting
-# in relation to the percentage of the population targeted.
-Qini_upliftRF <- qini(perf_upliftRF, plotit = TRUE) 
-
-Qini <- list()
-Qini[["upliftRF"]] <- Qini_upliftRF$Qini
-# The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here. 
+# 
+# # Performance Assessment for Uplift Models  ---------------------------------------------
+# 
+# # Equivalent to the standard model lift, we can calculate the uplift for the sample deciles
+# 
+# treatment_effect_order_mens <- order(pred[['upliftRF']], decreasing=TRUE)
+# treatment_effect_groups_mens <- cbind(testData[treatment_effect_order, c("Conversion","Treatment")],"effect_estimate"=pred[["upliftRF"]][treatment_effect_order])
+# 
+# head(treatment_effect_groups, 10)
+# 
+# # We cannot calculate the true treatment effect per person, but per group
+# treatment_effect_groups$Decile <- cut(treatment_effect_groups$effect_estimate, breaks = 10, labels=FALSE)
+# head(treatment_effect_groups)
+# tail(treatment_effect_groups, 4)
+# 
+# treatment_groups <- aggregate(treatment_effect_groups[,c("Conversion","effect_estimate")], 
+#                               by=list("Decile"=treatment_effect_groups$Decile, "Treatment"=treatment_effect_groups$Treatment), 
+#                               FUN=mean)
+# # Conversion of customer without a treatment/coupon ranked by prediction
+# {plot(treatment_groups$Conversion[10:1], type='l')
+#   # Conversion of customer with a treatment/coupon ranked by prediction
+#   lines(treatment_groups$Conversion[20:11], type='l', col="red")}
+# ## -> The uplift is the area between the curves
+# treatment <- treatment_groups$Conversion[20:11] - treatment_groups$Conversion[10:1]
+# 
+# # {uplift} has a function to calculate the Qini coefficient
+# # Argument direction specifies whether we aim to maximize (P_treatment - P_control) or (P_control - P_treatment), or in other words
+# # whether we aim for a high (purchase) probability or low (churn) probability
+# 
+# perf_upliftRF <- uplift::performance(pr.y1_ct1 = pred_upliftRF[, 1], pr.y1_ct0 = pred_upliftRF[, 2], 
+#                                      # with/without treatment prob.
+#                                      y = testData$Conversion, ct = testData$Treatment, # outcome and treatment indicators
+#                                      direction = 1, # maximize (1) or minimize (2) the difference? 
+#                                      groups = 10)
+# 
+# perf_upliftRF
+# # Plot uplift random forest performance
+# plot(perf_upliftRF[, "uplift"] ~ perf_upliftRF[, "group"], type ="l", xlab = "Decile (n*10% observations with top scores)", ylab = "Uplift")
+# plot(treatment, col='red')
+# 
+# # The Qini coefficient (derived from the Gini coefficient to measure the deviation from an equal distribution) is 
+# # defined as the area between the incremental gains curve of the model and the area under the diagonal resulting from random targeting
+# # in relation to the percentage of the population targeted.
+# Qini_upliftRF <- qini(perf_upliftRF, plotit = TRUE) 
+# 
+# Qini <- list()
+# Qini[["upliftRF"]] <- Qini_upliftRF$Qini
+# # The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here. 

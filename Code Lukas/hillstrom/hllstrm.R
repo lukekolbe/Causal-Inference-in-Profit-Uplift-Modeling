@@ -35,16 +35,13 @@ hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\Hillström Data\\hi
 str(hllstrm)
 summary(hllstrm)
 
-# hllstrm$mens <- as.factor(hllstrm$mens)
-# hllstrm$womens <- as.factor(hllstrm$womens)
-# hllstrm$newbie <- as.factor(hllstrm$newbie)
-# hllstrm$conversion <- as.factor(hllstrm$conversion)
 
 summary(hllstrm$segment)
 summary(hllstrm$spend)
 table(hllstrm$spend>0)
 table(hllstrm$segment)
 
+hllstrm$treatment <- integer(length=nrow(hllstrm))
 hllstrm$treatment <- ifelse(hllstrm$segment=="No E-Mail", 0, 1)
 
 ### stupid dummyfication of factors for causalboosting
@@ -68,6 +65,9 @@ for(level in unique(hllstrm$channel)){
 
 
 
+# REMONING UNNECESSARY COLUMNS --------------------------------------------
+
+hllstrm <- hllstrm[,-c(2,6,8,9)] #channel & zip_code not needed after dummification; history_segment redundant; segment replaced by "treatment"
 
 
 # TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
@@ -97,59 +97,16 @@ for(level in unique(hllstrm$channel)){
 # str(hllstrm)
 # 
 
-
 # SAMPLE SPLITTING AND STRATIFICATION ---------------------------------------------------
 
 # mens <- rbind(hllstrm[hllstrm$segment=="Mens E-Mail",],hllstrm[hllstrm$segment=="No E-Mail",])
 # womens <- rbind(hllstrm[hllstrm$segment=="Womens E-Mail",],hllstrm[hllstrm$segment=="No E-Mail",])
 # control <- hllstrm[hllstrm$segment=="No E-Mail",]
-# 
-# table(mens$spend>0, mens$segment)
-# table(womens$spend>0, womens$segment)
-# table(control$spend>0, control$segment)
-
-#### THIS TRIES TO STRATIFY ALONG THE VARIABLES CONVERSION AND TREATMENT (WITH THREE GROUPS)
-#### it fails
-#### WE SHOULD INSTEAD SPLIT THE POPULATION ALONG THE LINES OF THE TREATMENT AND DO 50/50 SPLITS
-# train_indices <- list()
-# combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c("Mens E-Mail","No E-Mail","Womens E-Mail")))
-# 
-# xtabs(~conversion+treatment, hllstrm)
-# sample_size <- as.numeric(xtabs(~conversion+treatment, hllstrm))
-# 
-# for(i in 1:6){
-#   train_indices[[i]] <- sample( which(hllstrm$conversion == combinations$Conversion[i] &
-#                                         hllstrm$segment == combinations$Treatment[i])
-#                                 , size = round(0.25*sample_size[i]), replace=FALSE)
-# }
-# trainIndex <- c(train_indices, recursive=TRUE)
-# 
-# trainData <- hllstrm[trainIndex,]
-# testData  <- hllstrm[-trainIndex,]
-# 
-# summary(trainData[,c("Conversion","Treatment")])
-# summary( testData[,c("Conversion","Treatment")])
 
 train_indices_all <- list()
-# train_indices_mens <- list()
-# train_indices_womens <- list()
 
 combinations <- expand.grid(list("Conversion"=c(0,1), "Treatment"= c(0,1)))
-
-# xtabs(~conversion+treatment, hllstrm)
-# xtabs(~conversion+treatment, mens)
-# xtabs(~conversion+treatment, womens)
-# xtabs(~conversion+treatment, control)
-
 sample_size_all <- as.numeric(xtabs(~conversion+treatment, hllstrm))
-# sample_size_mens <- as.numeric(xtabs(~conversion+treatment, mens))
-# sample_size_womens <- as.numeric(xtabs(~conversion+treatment, womens))
-
-# for(i in 1:4){
-#   train_indices[[i]] <- sample(which(hllstrm$conversion == combinations$Conversion[i] &
-#                                             hllstrm$treatment == combinations$Treatment[i])
-#                                     , size = round(0.75*sample_size[i]), replace=FALSE) 
-# } 
 
 for(i in 1:4){
   train_indices_all[[i]] <- sample(which(hllstrm$conversion == combinations$Conversion[i] &
@@ -157,48 +114,41 @@ for(i in 1:4){
                                    , size = round(0.25*sample_size_all[i]), replace=FALSE) 
 } 
 
-# for(i in 1:4){
-#   train_indices_mens[[i]] <- sample(which(mens$conversion == combinations$Conversion[i] &
-#                                             mens$treatment == combinations$Treatment[i])
-#                                     , size = round(0.25*sample_size_mens[i]), replace=FALSE) 
-# } 
-# 
-# for(i in 1:4){
-#   train_indices_womens[[i]] <- sample(which(womens$conversion == combinations$Conversion[i] &
-#                                               womens$treatment == combinations$Treatment[i])
-#                                       , size = round(0.25*sample_size_womens[i]), replace=FALSE) 
-# } 
-
-# trainIndex <- c(train_indices, recursive=TRUE)
 
 trainIndex_all <- c(train_indices_all, recursive=TRUE)
-# trainIndex_mens <- c(train_indices_mens, recursive=TRUE)
-# trainIndex_womens <- c(train_indices_womens, recursive=TRUE)
 
-# trainData <- hllstrm[trainIndex,]
-# testData  <- hllstrm[-trainIndex,]
+h_s.train <- hllstrm[-trainIndex_all,]
+h_s.test  <- hllstrm[trainIndex_all,]
 
-trainData_all <- hllstrm[-trainIndex_all,]
-testData_all  <- hllstrm[trainIndex_all,]
-
-# trainData_mens <- mens[-trainIndex_mens,]
-# testData_mens  <- mens[trainIndex_mens,]
-# 
-# trainData_womens <- womens[-trainIndex_womens,]
-# testData_womens  <- womens[trainIndex_womens,]
-
-# table(trainData_mens$spend>0, trainData_mens$segment)
-# table(trainData_womens$spend>0, trainData_womens$segment)
-table(trainData_all$spend>0, trainData_all$segment)
+table(h_s.train$spend>0, h_s.train$segment)
 
 
 summary(hllstrm[,c("conversion","treatment")])
-summary(testData_all[,c("conversion","treatment")])
-summary(trainData_all[,c("conversion","treatment")])
+summary(h_s.test[,c("conversion","treatment")])
+summary(h_s.train[,c("conversion","treatment")])
 
 #cleaning the mens and womens set of any control group >> necessary for two-model
 # mens <- mens[mens$segment=="Mens E-Mail",]
 # womens <- womens[hllstrm$segment=="Womens E-Mail",]
+
+
+
+# SMOTE SAMPLING ---------------------------------------------
+#https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3648438/pdf/1471-2105-14-106.pdf
+
+n <- names(hllstrm)
+f_smote_hllstrm <- as.formula(paste("conversion ~",paste(n[!n %in% c("conversion","spend","treatment")], collapse = " + ")))
+
+h_s.train$conversion <- as.factor(h_s.train$conversion)
+h_s.train_SMOTE <- SMOTE(f_smote_hllstrm,h_s.train,perc.over = 2000 ,perc.under = 450)
+#good
+
+# checking balance
+prop.table(table(h_s.train$conversion))
+prop.table(table(h_s.train_SMOTE$conversion))
+
+
+
 
 # Average Treatment Effect (ATE) ---------------------------------------------------
 
@@ -240,13 +190,13 @@ cb$overall
 
 library(causalTree)
 
-names(trainData_all)
+names(h_s.train)
 
-tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_all, treatment = trainData_all$treatment,
+tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = h_s.train, treatment = h_s.train$treatment,
                        split.Rule = "TOT", cv.option = "TOT", split.Honest = T, cv.Honest = F, split.Bucket = F,
                        xval = 10, cp = 0.0001, minsize = 50, propensity = 0.66667)
 
-tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = trainData_all, treatment = trainData_all$treatment,
+tree_all <- causalTree(spend~recency + history + history_segment + zip_code + channel + mens + womens + newbie, data = h_s.train, treatment = h_s.train$treatment,
                        split.Rule = "CT", cv.option = "CT", split.Honest = T, cv.Honest = F, split.Bucket = F,
                        xval = 10, cp = 0.0001, minsize = 50, propensity = 0.66667)
 
@@ -321,14 +271,14 @@ summary(tree_all)
 
 # CausalForest ------------------------------------------------------------
 
-names(trainData_all)
-str(trainData_all)
+names(h_s.train)
+str(h_s.train)
 
 
 cf_hillstrom <- causal_forest(
-  X = trainData_all[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
-  Y = trainData_all$spend,
-  W = trainData_all$treatment,
+  X = h_s.train[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
+  Y = h_s.train$spend,
+  W = h_s.train$treatment,
   num.trees = 1000,
   honesty = TRUE,
   honesty.fraction = NULL,
@@ -340,12 +290,12 @@ summary(cf_hillstrom)
 cf_hillstrom$tunable.params
 
 cf_hillstrom_preds <- predict(object = cf_hillstrom,
-                              newdata=testData_all[, -c(2,6,8,9,11,12,13)],
+                              newdata=h_s.test[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
 
 
 # perf_cf <- uplift::performance(pr.y1_ct1 = cf_hillstrom_preds[,1], pr.y1_ct0 = rep(0, times=length(cf_hillstrom_preds[,1])), # causal forests estimate the difference in probability directly
-#                                y = testData_all$spend, ct = testData_all$treatment, direction = 1, groups = 10)
+#                                y = h_s.test$spend, ct = h_s.test$treatment, direction = 1, groups = 10)
 # perf_cf # 9th Bin has uplift of 0.13 --> 13% more conversion
 
 
@@ -358,11 +308,11 @@ saveRDS(cf_hillstrom, "cf_hillstrom.RDS")
 # table(trainData$z_var2)
 # table(testData$z_var2)
 
-trainData_all[,-which(names(trainData_all) %in% c("conversion","spend","treatment", "segment","history_segment","zip_code","channel"))]
+h_s.train[,-which(names(h_s.train) %in% c("conversion","spend","treatment", "segment","history_segment","zip_code","channel"))]
 
 
 upliftRF_hllstrm <- upliftRF(conversion ~ trt(treatment) +.,
-                             data = trainData_all[,-which(names(trainData_all) %in% c("spend","segment","history_segment","zip_code","channel"))],
+                             data = h_s.train[,-which(names(h_s.train) %in% c("spend","segment","history_segment","zip_code","channel"))],
                              mtry = 6,
                              ntree = 1000,
                              split_method = "KL",
@@ -377,7 +327,7 @@ upliftRF_hllstrm <- readRDS("upliftRF_hllstrm.RDS")
 varImportance(upliftRF_hllstrm, plotit = FALSE, normalize = TRUE)
 
 pred_all <- list()
-pred_upliftRF <- predict(object = upliftRF_hllstrm, newdata = testData_all)
+pred_upliftRF <- predict(object = upliftRF_hllstrm, newdata = h_s.test)
 head(upliftRF_hllstrm)
 
 pred_womens[["upliftRF"]] <- upliftRF_hllstrm[, 1] - upliftRF_hllstrm[, 2]
@@ -456,15 +406,15 @@ summary(rpart_men)
 # causalboosting ----------------------------------------------------------
 
 
-str(trainData_all)
-names(trainData_all[,-which(names(trainData_all) %in% c("segment","history_segment","zip_code","channel"))])
-names(trainData_all)
+str(h_s.train)
+names(h_s.train[,-which(names(h_s.train) %in% c("segment","history_segment","zip_code","channel"))])
+names(h_s.train)
 
-prop.table(table(trainData_all$treatment))
+prop.table(table(h_s.train$treatment))
 
-cv.cb_hillstrom <- cv.causalBoosting(trainData_all[, -c(2,6,8,9,11,12,13)],
-                                     tx=trainData_all$treatment, 
-                                     y=trainData_all$spend,
+cv.cb_hillstrom <- cv.causalBoosting(h_s.train[, -c(2,6,8,9,11,12,13)],
+                                     tx=h_s.train$treatment, 
+                                     y=h_s.train$spend,
                                      num.trees=500,
                                      eps=0.3)
 
@@ -478,14 +428,14 @@ summary(cb_hillstrom)
 
 
 cb_hllstrm_pred <- predict(cv.cb_hillstrom, 
-                           newx = testData_all[, -c(2,6,8,9,11,12,13)], 
+                           newx = h_s.test[, -c(2,6,8,9,11,12,13)], 
                            type = "treatment.effect",
                            num.trees = 500,
                            honest = FALSE,
                            naVal = 0)
 
 summary(cb_hllstrm_pred)
-summary(trainData_all$spend)
+summary(h_s.train$spend)
 
 # BART --------------------------------------------------------------------
 
@@ -505,7 +455,7 @@ ctrl <- trainControl(method = "repeatedcv",
                      verboseIter = FALSE,
                      sampling = "smote")
 
-set.seed(42)
+#set.seed(42)
 model_rf_smote <- caret::train(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel,
                                data = trainData_mens,
                                method = "glm",

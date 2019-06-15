@@ -37,41 +37,59 @@ f_a <- read.csv("H:\\Applied Predictive Analytics\\Data\\fashion\\FashionA.csv",
 f_a$z_var <- 0
 f_a$z_var <- ifelse(f_a$label>0, 1, 0)
 summary(f_a$z_var)
+
+# Feature Engineering -------------------------------------------
+f_a$treatment = numeric(nrow(f_a))
+f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
+
+# library(lubridate)
+# # create 12-factor variable (months) for seasonality, maybe even seasons (4) out of epochSecond
+# f_a$month=as.factor(month(as_datetime(f_a$epochSecond)))
+# table(f_a$month)
+# str(f_a$month)
           
           # Decriptive Analysis ------------------
           str(f_a)
-          table(f_a$controlGroup)
+          table(f_a$treatment)
           
           table(f_a$campaignMov, f_a$campaignValue) # minimum order value is different depending on campaignValue (but consistent within value-segments)
           # Idee: uplift (5 Euro Gutschein vs 20 Euro Gutschein ?)
           prop.table(table(f_a$campaignValue)) #campaign value mostly 2000 CURRENCY UNITS, except for ~66700 or 6%
           
-          with(f_a, prop.table(table(campaignValue,controlGroup), margin=1)) # proportions of control/treatment groups seem consistent across treatments
-          summary(aov(campaignValue  ~ controlGroup, data=f_a)) 
+          with(f_a, prop.table(table(campaignValue,treatment), margin=1)) # proportions of control/treatment groups seem consistent across treatments
+          summary(aov(campaignValue  ~ treatment, data=f_a)) 
           # there are three campaignValues with very different segment size, but they show no difference in treatment/control population >> deleting some data (campaignValue other than "2000" does not shift the distribution)
           
-          #with(f_a, prop.table(table(converted,controlGroup, campaignValue), margin=1))
+          #with(f_a, prop.table(table(converted,treatment, campaignValue), margin=1))
           
           table(f_a$checkoutDiscount) #no checkout discounts in the data?!
-          prop.table(table(f_a$checkoutAmount>0, f_a$controlGroup)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
+          prop.table(table(f_a$checkoutAmount>0, f_a$treatment)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
           
           
-          treatment_uplift_a <- aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=f_a, mean)[2,2]
+          treatment_uplift_a <- aggregate(checkoutAmount ~ treatment, data=f_a, mean)[1,2] - aggregate(checkoutAmount ~ treatment, data=f_a, mean)[2,2]
           treatment_uplift_a #the treatment gives an average uplift across the whole population of 0.4892036
-          summary(aov(checkoutAmount  ~ controlGroup, data=f_a)) # the differences in checkout amount are statistically significant!
-          t.test(checkoutAmount ~ controlGroup, data=f_a) # the differences in checkout amount are statistically significant!
+          summary(aov(checkoutAmount  ~ treatment, data=f_a)) # the differences in checkout amount are statistically significant!
+          t.test(checkoutAmount ~ treatment, data=f_a) # the differences in checkout amount are statistically significant!
           
           names(f_a)
           
           table(f_a$campaignMov)
           
-          table(f_a$checkoutAmount>=105,f_a$controlGroup)#14.800 people qualified for actually using the discount of 20â¬ through achieving the minimum order value
-          with(f_a, prop.table(table(checkoutAmount>=105,controlGroup), margin=1)) # 25% of the treatment group have a checkout amount >=105 and 22.8% of the control group do
+          table(f_a$checkoutAmount>=105,f_a$treatment)#14.800 people qualified for actually using the discount of 20â¬ through achieving the minimum order value
+          with(f_a, prop.table(table(checkoutAmount>=105,treatment), margin=2)) # 25% of the treatment group have a checkout amount >=105 and 22.8% of the control group do
 
 # Drop columns with no information----------------------------------------------------------------
 f_a <- f_a[,-which(names(f_a) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
                                      "TimeToFirst.cart."))]
 
+
+# Seperating the different treatments --> Later test with 2-Model-Approach if treatment effects are higher for different treatments
+# f_a_5 <- f_a[f_a$campaignValue==500,] 
+# f_a_0 <- f_a[f_a$campaignValue==0,]
+f_a <- f_a[f_a$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
+
+          
+          
 #NA Columns ---------------------------------------------------
 # # Identify NA Columns
 # names(which(sapply(f_a, anyNA)))
@@ -98,20 +116,6 @@ for(i in 1:ncol(f_a)){
   f_a[is.na(f_a[,i]), i] <- median(f_a[,i], na.rm = TRUE)
 }
 
-# Feature Engineering -------------------------------------------
-f_a$treatment = numeric(nrow(f_a))
-f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
-
-# library(lubridate)
-# # create 12-factor variable (months) for seasonality, maybe even seasons (4) out of epochSecond
-# f_a$month=as.factor(month(as_datetime(f_a$epochSecond)))
-# table(f_a$month)
-# str(f_a$month)
-
-# Seperating the different treatments --> Later test with 2-Model-Approach if treatment effects are higher for different treatments
-# f_a_5 <- f_a[f_a$campaignValue==500,] 
-# f_a_0 <- f_a[f_a$campaignValue==0,]
-f_a <- f_a[f_a$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
 
 # correlation test and removal of highly correlated variables ------------------
 
@@ -154,6 +158,38 @@ f_a <- f_a[,which(names(f_a) %in% c("checkoutAmount","converted","treatment","la
                                     "ScreenWidth","ClicksPer.product.","NumberOfDifferent.overview.",
                                     "PageIs.product.","DayOfWeek","RepeatCount","PageIs.overview.",
                                     "HourOfDay","InitPageWas.home."))]
+
+
+
+#  Splitting into train & test set ----------------------------------------
+
+set.seed(12)
+
+strat_split <- stratified(f_a, c("treatment", "converted"), 0.8, bothSets=TRUE)
+f_a.learn <- as.data.frame(strat_split[[1]])
+f_a.learn.sub <- as.data.frame(strat_split[[2]])
+
+strat_split_small <- stratified(f_a.learn.sub, c("treatment", "converted"), 0.5, bothSets=TRUE)
+f_a.train_small <- as.data.frame(strat_split_small[[1]])
+f_a.test_small <- as.data.frame(strat_split_small[[2]])
+
+#summary(aov(checkoutAmount  ~ treatment, data=f_a)) # checking statistical significance of the differences in checkout amount
+summary(aov(checkoutAmount  ~ treatment, data=f_a.train_small)) # checking statistical significance of the differences in checkout amount
+summary(aov(checkoutAmount  ~ treatment, data=f_a.test_small)) # checking statistical significance of the differences in checkout amount
+
+t.test(checkoutAmount ~ treatment, data=f_a.train_small) # checking statistical significance of the differences in checkout amount
+
+table(f_a.train_small$checkoutAmount>0, f_a.train_small$treatment)
+
+prop.table(table(f_a$converted))
+prop.table(table(f_a.learn$converted))
+prop.table(table(f_a.learn.sub$converted))
+
+aggregate(checkoutAmount ~ treatment, data=f_a, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=f_a.learn, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a.learn, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=f_a.learn.sub, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a.learn.sub, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=f_a.train_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a.train_small, mean)[1,2] 
+aggregate(checkoutAmount ~ treatment, data=f_a.test_small, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_a.test_small, mean)[1,2] 
 
 
 

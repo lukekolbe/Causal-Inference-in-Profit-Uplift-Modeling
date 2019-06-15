@@ -24,7 +24,7 @@ library(mlbench)
 library(randomForest)
 library(splitstackshape)
 
-set.seed(111)
+set.seed(101010)
 
 getwd()
 f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
@@ -37,6 +37,9 @@ f_a$z_var <- 0
 f_a$z_var <- ifelse(f_a$label>0, 1, 0)
 summary(f_a$z_var)
 
+f_a$treatment = numeric(nrow(f_a))
+f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
+
 # Drop columns with no information
 f_a <- f_a[,-which(names(f_a) %in% c("campaignUnit","campaignTags","trackerKey","campaignId","checkoutDiscount","ViewedBefore.cart.",
                                      "TimeToFirst.cart."))]
@@ -48,9 +51,6 @@ f_a[, varlist][is.na(f_a[,varlist])] = 0
 for(i in 1:ncol(f_a)){
   f_a[is.na(f_a[,i]), i] <- median(f_a[,i], na.rm = TRUE)
 }
-
-f_a$treatment = numeric(nrow(f_a))
-f_a$treatment = ifelse(f_a$controlGroup==0, 1, 0)
 
 f_a <- f_a[f_a$campaignValue==2000,] # only work with those with campaign-value of "2000" as they are the largest uniform group!
 
@@ -67,15 +67,17 @@ f_a <- f_a[,which(names(f_a) %in% c("checkoutAmount","converted","treatment","la
 
 #  Splitting into train & test set ----------------------------------------
 
-set.seed(12)
+set.seed(101010)
 
-strat_split <- stratified(f_a, c("treatment", "converted"), 0.8, bothSets=TRUE)
-f_a.learn <- as.data.frame(strat_split[[1]])
-f_a.learn.sub <- as.data.frame(strat_split[[2]])
+strat_split <- stratified(f_a, c("treatment", "converted"), 0.667, bothSets=TRUE)
+f_a.train <- as.data.frame(strat_split[[1]])
+f_a.validate <- as.data.frame(strat_split[[2]])
 
-strat_split_small <- stratified(f_a.learn.sub, c("treatment", "converted"), 0.5, bothSets=TRUE)
-f_a.train_small <- as.data.frame(strat_split_small[[1]])
-f_a.test_small <- as.data.frame(strat_split_small[[2]])
+#do SMOTE here, BEFORE the next split
+
+# strat_trainsplit_small <- stratified(f_a.train, c("treatment", "converted"), 0.8, bothSets=TRUE)
+# f_a.train_discard <- as.data.frame(strat_trainsplit_small[[1]]) # we cannot use this data, too many rows, to expensive to compute.
+# f_a.train_small <- as.data.frame(strat_trainsplit_small[[2]])
 
 #summary(aov(checkoutAmount  ~ treatment, data=f_a)) # checking statistical significance of the differences in checkout amount
 summary(aov(checkoutAmount  ~ treatment, data=f_a.train_small)) # checking statistical significance of the differences in checkout amount
@@ -101,14 +103,21 @@ aggregate(checkoutAmount ~ treatment, data=f_a.test_small, mean)[2,2] - aggregat
 # needs work: https://beckernick.github.io/oversampling-modeling/
 ### split of a test/validation chunk, then do SMOTE on the training data, learn, predict on non-smote'd test data
 
-n <- names(f_a.train_small)
+n <- names(f_a.train)
 f_smote_f_a <- as.formula(paste("converted ~",paste(n[!n %in% c("converted","checkoutAmount","treatment","label","z_var")], collapse = " + ")))
 
-f_a.train_small$converted <- as.factor(f_a.train_small$converted)
-f_a.train_SMOTE <- SMOTE(f_smote_f_a,f_a.train_small,perc.over = 400,perc.under = 200)
+f_a.train$converted <- as.factor(f_a.train$converted)
+f_a.train_SMOTE <- SMOTE(f_smote_f_a,f_a.train,perc.over = 400,perc.under = 500) # data about 10% bigger than before
+#good: perc.over = 350,perc.under = 500
+
+f_a.validate$converted <- as.factor(f_a.validate$converted)
+f_a.validate_SMOTE <- SMOTE(f_smote_f_a,f_a.validate,perc.over = 400,perc.under = 500) # data about 10% bigger than before
+
+write.csv2(f_a.train_SMOTE, "f_a.train_SMOTE.csv")
+write.csv2(f_a.validate_SMOTE, "f_a.validate_SMOTE.csv")
 
 # checking balance
-prop.table(table(f_a.train_small$converted))
+prop.table(table(f_a.train$converted))
 prop.table(table(f_a.train_SMOTE$converted))
 
 prop.table(table(f_a.train_SMOTE$converted))
