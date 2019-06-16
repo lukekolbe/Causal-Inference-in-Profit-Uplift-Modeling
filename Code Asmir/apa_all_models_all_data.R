@@ -440,4 +440,26 @@ Qini <- list()
 Qini[["upliftRF"]] <- Qini_upliftRF$Qini
 # The results show that it is efficient to target the 70% of customers for which the model predictions are highest with our campaign (under the assumption that there is no budget constraint). Our model delivers much better results than random targeting which is represented in the red diagonal line here.
 
+# IRR (Incremental Response Rate)
+f_a$irr = sum(with(f_a$controlGroup == 0)/sum(f_a$controlGroup == 0))
 
+
+(experiment[1,2]/sum(experiment[1,]) ) - (experiment[2,2]/sum(experiment[2,]) )
+
+
+# BART -------------------
+#install.packages("BART")
+#devtools::install_github("vdorie/bartCause")
+library(bartCause)
+names(trainData_all)
+
+conf<-as.matrix(trainData_all[, -c(2,6,8,9,11,12,13)])
+bartc(spend, treatment, conf, data=trainData_all,
+      method.rsp = c("bart"),
+      method.trt = c("bart", "bart.xval"),
+      estimand   = c("ate", "att", "atc"),
+      group.by = NULL,
+      commonSup.rule = c("none", "sd", "chisq"),
+      commonSup.cut  = c(NA_real_, 1, 0.05),
+      p.scoreAsCovariate = TRUE, use.rbart = FALSE,
+      keepCall = TRUE, verbose = TRUE)

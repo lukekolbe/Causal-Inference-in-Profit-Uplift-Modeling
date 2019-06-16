@@ -49,9 +49,6 @@ cols.dont.want=c("TimeSinceOn.search.","TimeSinceOn.sale.","TimeToFirst.search."
                  "TimeToFirst.sale.","SecondsSinceFirst.search.","SecondsSinceFirst.cart.","SecondsSinceFirst.sale.",
                  "TimeToCartAdd","SecondsSinceTabSwitch") # get rid of these
 f_a=f_a[,! names(f_a) %in% cols.dont.want, drop=F]
-# Setting specific Column Null Values to 0, works for specificly defined columns
-#f_a$InitCartNonEmpty <- ifelse(f_a$InitCartNonEmpty == c("NA"), "0", f_a$InitCartNonEmpty)
-#colMeans(is.na(f_a)) #check --> worked
 
 #Create Dummy Variables from NA Columns
 #f_a$HasSessionBefore <- ifelse(f_a$TimeSinceLastVisit == c("NA"), "0", "1")
@@ -69,6 +66,11 @@ f_a[, varlist][is.na(f_a[,varlist])] = 0
 for(i in 1:ncol(f_a)){
   f_a[is.na(f_a[,i]), i] <- median(f_a[,i], na.rm = TRUE)
 }
+
+# Drop all Variables with Nulls
+#for(i in 1:ncol(f_a)){
+ # f_a[is.na(f_a[,i]),i] = NULL
+#}
 
 # Feature Engineering -------------------------------------------
 f_a$treatment = numeric(nrow(f_a))
@@ -98,3 +100,6 @@ library(corrplot)
 #colnames(f_a)
 corrplot::corrplot(cor(f_a[,61:ncol(f_a)]),method= "ellipse")
 
+# Expected Profit----------------------------
+# need conversion 
+f_a$expectedProfit

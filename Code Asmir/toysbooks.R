@@ -250,8 +250,8 @@ W <- bt$treatment
 # Note that there are several ways to specify/ calculate the distribution of the test statistic of the independence test. In this case,
 # we use Monte Carlo estimation (via approximate) with 500 repetitions.
 cf <- causal_forest(X = X[trainIndex,], Y = Y[trainIndex], W=W[trainIndex],
-                    num.trees = 300, 
-                    mtry = 10,
+                    num.trees = 100, 
+                    mtry = 5,
                     sample.fraction = 0.5,
                     min.node.size = 50,
                     honesty = TRUE, honesty.fraction=NULL,
