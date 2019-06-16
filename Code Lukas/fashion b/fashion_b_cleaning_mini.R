@@ -29,7 +29,7 @@ set.seed(101010)
 getwd()
 f_b <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionB.csv", sep=",")
 #f_b <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
-f_b <- read.csv("H:\\Applied Predictive Analytics\\Data\\fashion\\FashionB.csv", sep=",")
+f_b <- read.csv("H:\\Applied Predictive Analytics\\Data\\FashionB.csv", sep=",")
 
 # Feature Engineering & variable transformation -------------------------------------------------
 

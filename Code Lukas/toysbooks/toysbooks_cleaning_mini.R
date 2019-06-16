@@ -29,7 +29,7 @@ set.seed(101010)
 getwd()
 b_t <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/books and toys/BooksAndToys.csv", sep=",")
 #b_t <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/books and toys/BooksAndToys.csv", sep=",")
-b_t <- read.csv("H:\\Applied Predictive Analytics\\Data\\books and toys\\BooksAndToys.csv", sep=",")
+b_t <- read.csv("H:\\Applied Predictive Analytics\\Data\\BooksAndToys.csv", sep=",")
 
 # Feature Engineering & variable transformation -------------------------------------------------
 

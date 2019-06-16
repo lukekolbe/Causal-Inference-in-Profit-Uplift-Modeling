@@ -170,23 +170,23 @@ summary(upliftRF_men)
 library(doParallel)
 registerDoParallel(cores=4)
 
+system.time(cf_f_a3 <- foreach(ntree=rep(1000,4),
+                               .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)),
+                               .multicombine=TRUE,.packages='grf') %dopar% {
+                                 causal_forest(
+                                     X = data[,-c(2,22)], #removing checkoutAmount and treatment from covariates
+                                     Y = data$checkoutAmount,
+                                     W = data$treatment,
+                                   num.trees = ntree,
+                                   honesty = TRUE,
+                                   honesty.fraction = NULL,
+                                   seed = 1839
+                                 )
+                               }
+)
+stopImplicitCluster()
 
-# forests <- vector("list",4)
-# system.time(cf_f_a3 <- foreach(i=1:4, 
-#                                .combine=grf::merge_forests, .init=forests,
-#                                .multicombine=TRUE,.packages='grf') %dopar% {
-#                                  
-#                                  forests[i]<-causal_forest(
-#                                    X = f_a.train_small,
-#                                    Y = f_a.train_small$checkoutAmount,
-#                                    W = f_a.train_small$treatment,
-#                                    num.trees = 10,
-#                                    honesty = TRUE,
-#                                    honesty.fraction = NULL,
-#                                    seed = 1839
-#                                  )
-#                                }
-# )
+
 
 
 cf_f_a <- causal_forest(

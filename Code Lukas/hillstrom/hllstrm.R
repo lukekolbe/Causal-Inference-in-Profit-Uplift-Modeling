@@ -24,13 +24,15 @@ library("BART")
 set.seed(101010)
 
 getwd()
-setwd("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/HillstrÃ¶m Data/")
 hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
-
-setwd("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/HillstrÃ¶m Data")
 hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
 hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\Hillström Data\\hillstrm.csv", sep=",")
+
+
+#for use with SMOTE DATA
+h_s.train <- read.csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/h_s.train_SMOTE.csv")
+h_s.train <- read.csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/h_s.train_SMOTE.csv")
 
 str(hllstrm)
 summary(hllstrm)
@@ -68,7 +70,8 @@ for(level in unique(hllstrm$channel)){
 # REMONING UNNECESSARY COLUMNS --------------------------------------------
 
 hllstrm <- hllstrm[,-c(2,6,8,9)] #channel & zip_code not needed after dummification; history_segment redundant; segment replaced by "treatment"
-
+hllstrm[,c(1,3:7,9:15)] <- apply(hllstrm[,c(1,3:7,9:15)],2, as.numeric)
+str(hllstrm)
 
 # TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
 
@@ -271,15 +274,45 @@ summary(tree_all)
 
 # CausalForest ------------------------------------------------------------
 
+# library(doParallel)
+# registerDoParallel(cores=4)
+# 
+# system.time(cf_f_a_dopar <- foreach(ntree=rep(1000,4),
+#                                     .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)),
+#                                     .multicombine=TRUE,.packages='grf') %dopar% {
+#                                       forests[i]<-causal_forest(
+#                                         X = data[,-c(2,22)], #removing checkoutAmount and treatment from covariates
+#                                         Y = data$checkoutAmount,
+#                                         W = data$treatment,
+#                                         num.trees = ntree,
+#                                         honesty = TRUE,
+#                                         honesty.fraction = NULL,
+#                                         seed = 1839
+#                                       )
+#                                     }
+# )
+# stopImplicitCluster()
+
 names(h_s.train)
 str(h_s.train)
 
 
 cf_hillstrom <- causal_forest(
-  X = h_s.train[, -c(2,6,8,9,11,12,13)], #excluding factors (dummified above) and Y-Variables
+  X = h_s.train[, -c(7,8,9)], #excluding factors (dummified above) and Y-Variables
   Y = h_s.train$spend,
   W = h_s.train$treatment,
-  num.trees = 1000,
+  num.trees = 4000,
+  honesty = TRUE,
+  honesty.fraction = NULL,
+  tune.parameters=TRUE,
+  seed = 1839
+)
+
+cf_hillstrom_SMOTE <- causal_forest(
+  X = h_s.train[, -c(1,8,9,10)], #excluding factors (dummified above), X introduced by SMOTE and Y-Variables
+  Y = h_s.train$spend,
+  W = h_s.train$treatment,
+  num.trees = 4000,
   honesty = TRUE,
   honesty.fraction = NULL,
   tune.parameters=TRUE,

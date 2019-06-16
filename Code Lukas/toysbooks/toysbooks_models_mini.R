@@ -10,8 +10,8 @@ library(randomForest)
 set.seed(101010)
 
 
-b_t.train_SMOTE <- read_csv2("H:\Applied Predictive Analytics\Data\SMOTE\b_t.train_SMOTE.csv")
-b_t.train_SMOTE <- read_csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/b_t.train_SMOTE.csv")
+b_t.train_SMOTE <- read_csv2("H:\\Applied Predictive Analytics\\Data\\SMOTE\\b_t.train_SMOTE.csv")
+b_t.train_SMOTE <- data.frame(read_csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/b_t.train_SMOTE.csv"))
 #b_t.validate_SMOTE <- read_csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/b_t.validate_SMOTE.csv")
 
 
@@ -38,7 +38,7 @@ names(b_t.train)
 data <- b_t.train[,-c(3,4,24)] #removing targets label, converted, z_var
 #data_b_t <- b_t.train_small[,-c(2,3,24)] #leaving converted, removing checkoutAmount
 
-data <- b_t.train_SMOTE[,-c(3,4,24)] #removing targets label, converted, z_var
+data <- b_t.train_SMOTE[,-c(1,4,5,25)] #removing targets label, converted, z_var
 
 
 n <- names(data)
@@ -46,9 +46,16 @@ f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% c("converted","checkou
 
 
 # Causal Tree -------------------------------------------------------------
-tree_b_t1 <- causalTree(f, data = data, treatment = data$treatment,
-                        split.Rule = "CT", cv.option = "CT",  cv.Honest = T, split.Bucket = T,
-                        xval = 5)
+ct_model.frame <- model.frame(f,data)
+
+system.time(ct_b_t <- causalTree(formula=ct_model.frame, 
+                                 data=data,
+                                 treatment = data$treatment,
+                                 split.Rule = "CT", 
+                                 cv.option = "CT",  
+                                 cv.Honest = T, 
+                                 split.Bucket = T,
+                                 xval = 5))
 
 # Causal Forest -----------------------------------------------------------
 
@@ -62,6 +69,25 @@ system.time(cf_b_t <- causal_forest(
   honesty.fraction = NULL,
   seed = 1839
 ))
+
+library(doParallel)
+registerDoParallel(cores=4)
+
+system.time(cf_b_t_SMOTE <- foreach(ntree=rep(1000,4),
+                                    .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)),
+                                    .multicombine=TRUE,.packages='grf') %dopar% {
+                                      causal_forest(
+                                        X = data[,-c(2,22)], #removing checkoutAmount and treatment from covariates
+                                        Y = data$checkoutAmount,
+                                        W = data$treatment,
+                                        num.trees = ntree,
+                                        honesty = TRUE,
+                                        honesty.fraction = NULL,
+                                        seed = 1839
+                                      )
+                                    }
+)
+stopImplicitCluster()
 
 cf_b_t.preds <- predict(object = cf_b_t, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
                         newdata=b_t.test_small,
