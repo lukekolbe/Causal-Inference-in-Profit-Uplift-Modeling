@@ -323,15 +323,19 @@ cf_hillstrom <- causal_forest(
   seed = 1839
 )
 # RDS LADEN für CF
+setwd("~/Desktop/apa_data")
 cf_hillstrom <- readRDS("cf_hillstrom.RDS")
 summary(cf_hillstrom)
+
+set.seed(123) # because of randomness involved 
 
 cf_hillstrom_preds <- predict(object = cf_hillstrom,
                               newdata=testData_all[, -c(2,6,8,9,11,12,13)],
                               estimate.variance = TRUE)
 cf_hillstrom_preds = cf_hillstrom_preds[,1]
+cf_hillstrom_preds
 
-set.seed(123) # because of randomness involved 
+
 
 # We rank the uplift scores from high to low and add this infromation to a dataframe 
 mm_cf = cbind(uplift = cf_hillstrom_preds,

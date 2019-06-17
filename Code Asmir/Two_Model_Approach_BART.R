@@ -194,130 +194,126 @@ head(pred_mens)
 
 
 
-# Uplift Generalized Lai´s Approach ------------------------
+#  Two-Model-Approach ------------------------
 # required packages
 #install.packages("splitstackshape")
 #install.packages("caret")
 #install.packages("MLmetrics")
 #install.packages("e1071")
+install.packages("bartMachine")
+install.packages("rJava")
+library(rJava)
+library(bartMachine)
 library(e1071)
 library(MLmetrics)
 library(splitstackshape)
 library(caret)
+library(uplift)
 
 # Extra variables:
 treatmentVariable = "treatment"
-targetVariable = "converted"
+targetVariable = "checkoutAmount"
 #table(f_a[,targetVariable])
 #table(f_a[,treatmentVariable])
 #targetNegativeClass <-  f_a$converted[f_a$converted == 0]  # Needed later on for factoring the target variable (only needed for certain techniques)
 #targetPositiveClass <- f_a$converted[f_a$converted == 1]   # Needed later on for factoring the target variable (only needed for certain techniques)
-targetNegativeClass = "NO"
-targetPositiveClass = "YES"
+# targetNegativeClass = "NO"
+# targetPositiveClass = "YES"
 predictors <- names(f_a)[(names(f_a) != targetVariable) & (names(f_a) != treatmentVariable)]
 str(predictors)
-# We check the distribution of both treatment/control and purchase/non-purchase
-prop.table(table(f_a[,targetVariable],f_a[,treatmentVariable]))
 
-# Checking the rations are indeed more or less the same 
+# We split the dataset into a training and testing set. We have to do a stratisfied split on both 
+# the treatment and target variables becaue we want to keep the same ratios of treatment/control
+# and converted/non-converted
 
+# Splitting into train & test set
+splitted = stratified(f_a, c("treatment", "converted"), 0.667, bothSets = T)
+f_a.train = as.data.frame(splitted[[1]])
+f_a.test = as.data.frame(splitted[[2]])
 
-# Specifying new target variable
-targetVariable.Multi = "converted.Multi"
-#targetCR = f_a$converted[f_a$treatment == 0 & f_a$converted ==1]
-#targetCN = f_a$converted[f_a$treatment == 0 & f_a$converted ==0]
-#targetTR = f_a$converted[f_a$treatment == 1 & f_a$converted ==1]
-#targetTN = f_a$converted[f_a$treatment == 1 & f_a$converted ==0]
-targetCR = "CR"
-targetCN = "CN"
-targetTR = "TR"
-targetTN = "TN"
-## Factoring Target variable ##
-trainData[,targetVariable] <- factor(trainData[,targetVariable])
-levels(trainData[,targetVariable]) <- c(targetNegativeClass, targetPositiveClass)
+strat_trainsplit_small <- stratified(f_a.train, c("treatment", "converted"), 0.85, bothSets=TRUE)
+#f_a.train_discard <- as.data.frame(strat_trainsplit_small[[1]]) # we cannot use this data, too many rows, to expensive to compute.
+f_a.train <- as.data.frame(strat_trainsplit_small[[2]])
 
+# CHecking if the ratios are indeed more or less the same.
+# prop.table(table(f_a.train[,targetVariable], f_a.train[,treatmentVariable]))
+# prop.table(table(f_a.test[,targetVariable], f_a.test[,treatmentVariable]))
 
-## Factoring Target variable Multinominal ##
-trainData[,targetVariable.Multi] <- NA
-levels(trainData[,targetVariable.Multi]) <- c(targetTN, targetTR, targetCN, targetCR)
-str(trainData)
+# We factor the target variable and assign it its levels (YES and NO)
+# f_a.train[,targetVariable] <- factor(f_a.train[,targetVariable])
+# levels(f_a.train[,targetVariable]) <- c(targetNegativeClass, targetPositiveClass)
 
-trainData[,targetVariable.Multi][trainData[,targetVariable] == "YES"  & trainData[,treatmentVariable] == 1] <- targetTR # Treated responders
-trainData[,targetVariable.Multi][trainData[,targetVariable] == "NO"  & trainData[,treatmentVariable] == 1] <- targetTN # Treated non-responders
-trainData[,targetVariable.Multi][trainData[,targetVariable] == "YES"  & trainData[,treatmentVariable] == 0] <- targetCR # Control responders
-trainData[,targetVariable.Multi][trainData[,targetVariable] == "NO"  & trainData[,treatmentVariable] == 0] <- targetCN # Control non-responders
+# For this approach we need to split the dataset into separate datasets, 
+# one for the treatment group and one for the control group (as two separate models will be built).
 
+## Splitting on the treatment variable to create the treatment and control groups. ##
+## Splitting on the treatment variable to create the treatment and control groups. ##
+out <- split(f_a.train, f = f_a.train[, treatmentVariable])
+f_a.train.control <- out[[1]]
+f_a.train.treatment <- out[[2]]
 
-prop.table(table(trainData[,targetVariable.Multi]))
+## Removing the treatmentVariable ##
+unwantedColumns <- c(treatmentVariable)
+f_a.train.treatment <- f_a.train.treatment[ , -which(names(f_a.train.treatment) %in% unwantedColumns)]
+f_a.train.control <- f_a.train.control[ , -which(names(f_a.train.control) %in% unwantedColumns)]
 
-table(trainData$converted.Multi)
-
-gmbGrid = expand.grid(interaction.depth = c(1,5,9),
-                      n.trees = (1:20)*50,
-                      shrinkage =0.1,
-                      n.minobsinnode = 20)
+# We built two models, on fore the treatment group, on for the control group.
+# Both models are built with a logistic regression and are implemented using the 'caret' Package 
 
 ## setting up traiing schema ##
 ctrl = trainControl(method= "cv",
                     number = 5,
                     classProbs = T,
-                    summaryFunction=multiClassSummary)
-## Training the model 
-model = train(trainData[,predictors],
-              trainData[,targetVariable.Multi],
-              method="BART",
-              trControl = ctrl)
+                    summaryFunction=twoClassSummary)
+## Setting up tuning parameters
+tgrid = expand.grid(num_trees = 100, k = 2, alpha= 0.95, beta = 2, nu = 3)
+## Training the model on treatment group
+model.TMA.treatment <- train(f_a.train.treatment[,predictors], 
+                             f_a.train.treatment[,targetVariable],
+                             method="bartMachine",
+                             tuneGrid = tgrid,
+                             trControl=trainControl(method="none"))
 
+## Training the model on control group
+model.TMA.control <- train(f_a.train.control[,predictors], 
+                           f_a.train.control[,targetVariable],
+                           method="bartMachine",
+                           tuneGrid = tgrid,
+                           trControl=trainControl(method="none"))
+
+# TESTING THE MODEL
+
+# First We factor the targetVariable of the test set and setting the levels.
 ## Factoring Target variable ##
-testData$targetVariableFactor <- factor(testData[,targetVariable])
-levels(testData[,"targetVariableFactor"]) <- c(targetNegativeClass, targetPositiveClass)
 
-## Factoring Target variable Multinominal ##
-testData[,targetVariable.Multi] <- NA
-levels(testData[,targetVariable.Multi]) <- c(targetTN, targetTR, targetCN, targetCR)
+f_a.test$targetVariableFactor <- factor(f_a.test[,targetVariable])
+levels(f_a.test[,"targetVariableFactor"]) <- c(targetNegativeClass, targetPositiveClass)
 
-# We fill in the new targetVariable for the test set.
-testData[,targetVariable.Multi][testData[,targetVariable] == "YES" & testData[,treatmentVariable] == 1] <- targetTR # Treated responders
-testData[,targetVariable.Multi][testData[,targetVariable] == "NO"  & testData[,treatmentVariable] == 1] <- targetTN # Treated non-responders
-testData[,targetVariable.Multi][testData[,targetVariable] == "YES" & testData[,treatmentVariable] == 0] <- targetCR # Control responders
-testData[,targetVariable.Multi][testData[,targetVariable] == "NO"  & testData[,treatmentVariable] == 0] <- targetCN # Control non-responders
+# We then get the probabilities for both the models (one trained on the treatment set and
+# one on the control set).
+# Get predictions of treatment model #
+modelProbs.TMA.Treatment <- extractProb(list(model.TMA.treatment), 
+                                        testX = f_a.test[,predictors], 
+                                        testY = f_a.test[,"targetVariableFactor"])
+modelProbs.TMA.Treatment.Results <- modelProbs.TMA.Treatment[modelProbs.TMA.Treatment$dataType == "Test",]
 
-# We look at the percentages for each class.
-print(prop.table(table(df.test[,targetVariable.Multi])))
-numeric(0)
+# Get predictions of control model #
+modelProbs.TMA.Control <- extractProb(list(model.TMA.control), 
+                                      testX = f_a.test[,predictors], 
+                                      testY = f_a.test[,"targetVariableFactor"])
+modelProbs.TMA.Control.Results <- modelProbs.TMA.Control[modelProbs.TMA.Control$dataType == "Test",]
 
-# We ust the model to get the probabilities of the obs. for the test set
-modelProbs.GLAI <- extractProb(list(model),
-                               testX = testData[,predictors],
-                               testY = testData[,targetVariable.Multi])
+# We then group together the predictions in a dataframe. The final uplift prediction
+# is the proabbilty of a person purchasing when receiving a treatment minus the 
+# probabilty of a person purchasing when not receiving a treatment
 
-modelProbs.GLAI.Results <- modelProbs.GLAI[modelProbs.GLAI$dataType == "Test",]
-
-
-#We then group together the predictions in a dataframe. 
-# The final uplift prediction is the probability of a person purchasing when receiving 
-# a treatment minus the probability of a person purchasing when not receiving a treatment.
-predictions.GLAI = data.frame(TR=numeric(nrow(modelProbs.GLAI.Results)),
-                              TN=numeric(nrow(modelProbs.GLAI.Results)),
-                              CR=numeric(nrow(modelProbs.GLAI.Results)),
-                              CN=numeric(nrow(modelProbs.GLAI.Results)))
-
-predictions.GLAI$TR <- modelProbs.GLAI.Results[,targetTR]
-predictions.GLAI$TN <- modelProbs.GLAI.Results[,targetTN]
-predictions.GLAI$CR <- modelProbs.GLAI.Results[,targetCR]
-predictions.GLAI$CN <- modelProbs.GLAI.Results[,targetCN]
-
-
-# To calculate the uplift we work as followed:
-prob.C <- prop.table(table(testData[,treatmentVariable]))[1]
-prob.T <- prop.table(table(testData[,treatmentVariable]))[2]
-
-predictions.GLAI$Uplift <- ((predictions.GLAI$TR / prob.T) + (predictions.GLAI$CN / prob.C)) - 
-  ((predictions.GLAI$TN / prob.T) + (predictions.GLAI$CR / prob.C))
+predictions.TMA = data.frame(treatment=numeric(nrow(modelProbs.TMA.Treatment.Results)),control=numeric(nrow(modelProbs.TMA.Control.Results)))
+predictions.TMA$treatment <- modelProbs.TMA.Treatment.Results[,targetPositiveClass]
+predictions.TMA$control <- modelProbs.TMA.Control.Results[,targetPositiveClass]
+predictions.TMA$uplift <- modelProbs.TMA.Treatment.Results[,targetPositiveClass] - modelProbs.TMA.Control.Results[,targetPositiveClass]
 
 # We can take a sneak peak at the predictions
-head(precicitons.GLAI, n=10)   
-
+head(predictions.TMA, n=10)
 
 #Evaluating the model-----------------------------
 
@@ -329,11 +325,10 @@ head(precicitons.GLAI, n=10)
 
 set.seed(123) # As there is a randomness is involved we set a seed to be able to reproduce results while testing.
 
-
-mm <- cbind(uplift = predictions.GLAI[,5],
-            target = testData[,targetVariable], 
-            treatment = testData[,treatmentVariable],
-            uplift_rank = rank(-predictions.GLAI[,5], ties.method = "random"))
+mm <- cbind(uplift = predictions.TMA[,3],
+            target = df.test[,targetVariable], 
+            treatment = df.test[,treatmentVariable],
+            uplift_rank = rank(-predictions.TMA[,3], ties.method = "random"))
 
 ## Afterwards we divide the observation into 10 equal groups. 
 ## The first group will contain the highest uplift scores, 

@@ -30,6 +30,7 @@ getwd()
 f_a <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
 #f_a <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
 f_a <- read.csv("H:\\Applied Predictive Analytics\\Data\\FashionA.csv", sep=",")
+f_a <- read.csv("/Users/asmir/Desktop/apa_data/FashionA.csv", sep=",")
 
 # Feature Engineering & variable transformation -------------------------------------------------
 
