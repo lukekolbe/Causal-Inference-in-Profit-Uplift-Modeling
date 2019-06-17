@@ -1,4 +1,4 @@
-# install.packages("grf")
+install.packages("grf")
 # install.packages("uplift")
 # install.packages("devtools")
 # install.packages("caret")
@@ -6,6 +6,7 @@
 # install_github("saberpowers/causalLearning")
 # library(devtools) 
 install.packages("BART")
+install.packages("doParallel")
 
 
 library(devtools)
@@ -16,9 +17,14 @@ library("uplift")
 library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
-library(causalLearning)
-library(causalTree)
+library("DMwR") #for SMOTE
+library(mlbench)
+library(randomForest)
+library(splitstackshape)
 library("BART")
+library(bartCause)
+library(doParallel)
+
 
 
 set.seed(101010)
@@ -27,22 +33,17 @@ getwd()
 hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
+hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\hillstrm.csv", sep=",")
+
+
 #for use with SMOTE DATA
 h_s.train <- read.csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/h_s.train_SMOTE.csv")
-h_s.train_SMOTE <- read.csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/h_s.train_SMOTE.csv")
 h_s.train <- read.csv2("H:\\Applied Predictive Analytics\\Data\\SMOTE\\h_s.train_SMOTE.csv")
+h_s.train[,1]<-NULL
 
 
 str(hllstrm)
-str(b_t)
-str(b_t.train)
 str(h_s.train)
-
-str(h_s.train_SMOTE)
-str(b_t.train_SMOTE)
-
-summary(hllstrm)
-
 
 summary(hllstrm$segment)
 summary(hllstrm$spend)
@@ -70,13 +71,20 @@ for(level in unique(hllstrm$channel)){
 #   hllstrm[paste("segment", level, sep = "_")] <- ifelse(hllstrm$segment == level, 1, 0)
 # }
 
-# THE NEW DATA HAS TO BE MADE INTEGERS; SO THAT SMOTE DOES NOT 
 
-# REMONING UNNECESSARY COLUMNS --------------------------------------------
+# REMOVING UNNECESSARY COLUMNS --------------------------------------------
 
 hllstrm <- hllstrm[,-c(2,6,8,9)] #channel & zip_code not needed after dummification; history_segment redundant; segment replaced by "treatment"
-hllstrm[,c(1,3:7,9:15)] <- apply(hllstrm[,c(1,3:7,9:15)],2, as.numeric)
-str(hllstrm)
+
+### ONLY NECESSARY BEFORE SMOTE
+# hllstrm[,c(3,4,5,6,7,9:15)] <- apply(hllstrm[,c(3,4,5,6,7,9:15)],2, as.integer)
+# str(hllstrm)
+# 
+# for(i in c(3,4,5,6,7,9:15)){
+#   hllstrm[,i] <- as.factor(hllstrm[,i])
+# }
+# 
+
 
 # stratification ----------------------------------------------------------
 
@@ -113,7 +121,7 @@ summary(h_s.train[,c("conversion","treatment")])
 n <- names(hllstrm)
 f_smote_hllstrm <- as.formula(paste("conversion ~",paste(n[!n %in% c("conversion","spend","treatment")], collapse = " + ")))
 
-h_s.train$conversion <- as.factor(h_s.train$conversion)
+#h_s.train$conversion <- as.factor(h_s.train$conversion)
 h_s.train_SMOTE <- SMOTE(f_smote_hllstrm,h_s.train,perc.over = 2000 ,perc.under = 450)
 #good
 
@@ -122,17 +130,23 @@ prop.table(table(h_s.train$conversion))
 prop.table(table(h_s.train_SMOTE$conversion))
 
 
-h_s.test$conversion <- as.factor(h_s.test$conversion)
+#h_s.test$conversion <- as.factor(h_s.test$conversion)
 h_s.test_SMOTE <- SMOTE(f_smote_hllstrm,h_s.test,perc.over = 2000,perc.under = 450) # data about 10% bigger than before
 
 write.csv2(h_s.train_SMOTE, "h_s.train_SMOTE.csv")
 write.csv2(h_s.test_SMOTE, "h_s.test_SMOTE.csv")
 
+
+
 # Data & formulas ---------------------------------------------------------
+# h_s.train <- h_s.train_SMOTE
+# str(h_s.train)
+# for(i in c(3,4,5,6,7,9:15)){
+#   h_s.train[,i] <- as.numeric(h_s.train[,i])-1
+# }
 
 #PICK ONE:
 data <- h_s.train
-
 
 n <- names(data)
 f <- as.formula(paste("spend ~", paste(n[!n %in% c("conversion","treatment", "spend")], collapse = " + ")))
@@ -154,27 +168,38 @@ tree_all$cptable
 rpart.plot(tree_all)
 summary(tree_all)
 
+ct_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s2.rds")
+ct_h_s_smote <-readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s_SMOTE2.rds")
+ct_h_s.pred <- data.frame(predict(ct_h_s, h_s.test))
+ct_h_s.pred_smote <- data.frame(predict(ct_h_s_smote, h_s.test))
 
+ct_h_s$var
+
+prop.table(table(ct_h_s.pred$predict.ct_h_s..h_s.test.!=0))
+prop.table(table(ct_h_s.pred_smote$predict.ct_h_s_smote..h_s.test.!=0))
+
+write.csv(ct_h_s.pred, "ct_h_s.pred.csv")
+write.csv(ct_h_s.pred_smote, "ct_h_s.pred_smote.csv")
 # CausalForest ------------------------------------------------------------
 
-# library(doParallel)
-# registerDoParallel(cores=4)
-# 
-# system.time(cf_f_a_SMOTE <- foreach(ntree=rep(1000,4),
-#                                     .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)),
-#                                     .multicombine=TRUE,.packages='grf') %dopar% {
-#                                       forests[i]<-causal_forest(
-#                                         X = data[,-c(2,22)], #removing checkoutAmount and treatment from covariates
-#                                         Y = data$checkoutAmount,
-#                                         W = data$treatment,
-#                                         num.trees = ntree,
-#                                         honesty = TRUE,
-#                                         honesty.fraction = NULL,
-#                                         seed = 1839
-#                                       )
-#                                     }
-# )
-# stopImplicitCluster()
+library(doParallel)
+registerDoParallel(cores=2)
+
+system.time(cf_hillstrom_SMOTE <- foreach(ntree=rep(2000,2),
+                                    .combine=function(a,b)grf::merge_forests(list(a,b)),
+                                    .multicombine=TRUE,.packages='grf') %dopar% {
+                                      causal_forest(
+                                        X = data[,-c(7,8,9)], #removing spend, conversion and treatment from covariates
+                                        Y = data$spend,
+                                        W = data$treatment,
+                                        num.trees = ntree,
+                                        honesty = TRUE,
+                                        honesty.fraction = NULL,
+                                        seed = 1839
+                                      )
+                                    }
+)
+stopImplicitCluster()
 
 names(data)
 str(data)
@@ -204,14 +229,18 @@ cf_hillstrom_SMOTE <- causal_forest(
 
 summary(cf_hillstrom)
 cf_hillstrom$tunable.params
+names(h_s.test)
 
-cf_hillstrom_preds <- predict(object = cf_hillstrom,
-                              newdata=h_s.test[, -c(2,6,8,9,11,12,13)],
+saveRDS(cf_hillstrom_SMOTE, "cf_hillstrom_SMOTE.RDS")
+
+cf_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_hillstrom.RDS")
+
+cf_h_s_preds <- predict(object = cf_hillstrom_SMOTE,
+                              newdata=h_s.test[, -c(7,8,9)],
                               estimate.variance = TRUE)
 
+write.csv2(cf_h_s_preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_h_s_preds.csv")
 
-
-saveRDS(cf_hillstrom, "cf_hillstrom.RDS")
 
 
 # UPLIFT RF (used for variable importance) --------------------------------------------------------
@@ -270,15 +299,15 @@ summary(rpart_men)
 # causalboosting ----------------------------------------------------------
 
 
-str(h_s.train)
-names(h_s.train[,-which(names(h_s.train) %in% c("segment","history_segment","zip_code","channel"))])
+str(data)
+names(data)
 names(h_s.train)
 
 prop.table(table(h_s.train$treatment))
 
-cv.cb_hillstrom <- cv.causalBoosting(h_s.train[, -c(2,6,8,9,11,12,13)],
-                                     tx=h_s.train$treatment, 
-                                     y=h_s.train$spend,
+cv.cb_hillstrom <- cv.causalBoosting(data[,-c(7,8,9)],
+                                     tx=data$treatment, 
+                                     y=data$spend,
                                      num.trees=500,
                                      eps=0.3)
 
@@ -303,3 +332,12 @@ summary(h_s.train$spend)
 
 # BART --------------------------------------------------------------------
 
+conf<-as.matrix(data[,-c(7,8,9)])
+
+system.time(h_s_bart <- bartc(spend, treatment, conf, data=data,
+                              method.rsp = "bart",
+                              method.trt = "bart",
+                              estimand   = "att",
+                              p.scoreAsCovariate = TRUE, 
+                              keepCall = TRUE, 
+                              verbose = TRUE))

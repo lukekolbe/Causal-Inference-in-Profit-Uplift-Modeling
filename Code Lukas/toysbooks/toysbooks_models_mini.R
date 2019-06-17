@@ -6,6 +6,8 @@ library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
 library(randomForest)
+library(bartCause)
+
 
 set.seed(101010)
 
@@ -89,10 +91,20 @@ system.time(cf_b_t_SMOTE <- foreach(ntree=rep(1000,4),
 )
 stopImplicitCluster()
 
-cf_b_t.preds <- predict(object = cf_b_t, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                        newdata=b_t.test_small,
+
+cf_b_t <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_b_t.RDS")
+cf_b_t_SMOTE <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_b_t_SMOTE.RDS")
+
+cf_b_t.preds <- predict(object = cf_b_t,
+                        newdata=b_t.validate[-c(2,3,4,22,24)],
                         estimate.variance = TRUE)
 
+cf_b_t.preds_SMOTE <- predict(object = cf_b_t_SMOTE,
+                              newdata=b_t.validate[-c(2,3,4,22,24)],
+                              estimate.variance = TRUE)
+
+write.csv2(cf_b_t.preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_b_t_preds.csv")
+write.csv2(cf_b_t.preds_SMOTE, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_b_t_preds_SMOTE.csv")
 
 
 # CausalBoosting ----------------------------------------------------------
@@ -129,3 +141,16 @@ upliftRF_b_t2 <- upliftRF(f3,
                           minsplit = 50,
                           verbose = TRUE)
 summary(upliftRF_men)
+
+
+# BART --------------------------------------------------------------------
+
+conf<-as.matrix(data[,-c(2,22)])
+
+system.time(b_t_bart <- bartc(spend, treatment, conf, data=data,
+                              method.rsp = "bart",
+                              method.trt = "bart",
+                              estimand   = "att",
+                              p.scoreAsCovariate = TRUE, 
+                              keepCall = TRUE, 
+                              verbose = TRUE))

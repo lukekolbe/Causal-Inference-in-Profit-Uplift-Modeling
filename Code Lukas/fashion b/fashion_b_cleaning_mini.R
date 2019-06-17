@@ -74,6 +74,9 @@ strat_split <- stratified(f_b, c("treatment", "converted"), 0.667, bothSets=TRUE
 f_b.train <- as.data.frame(strat_split[[1]])
 f_b.validate <- as.data.frame(strat_split[[2]])
 
+strat_validate_split <- stratified(f_b.validate, c("treatment", "converted"), 0.5, bothSets=TRUE)
+f_b.test <- as.data.frame(strat_validate_split[[2]])
+
 #do SMOTE here, BEFORE the next split
 
 # strat_trainsplit_small <- stratified(f_b.train, c("treatment", "converted"), 0.23, bothSets=TRUE)

@@ -16,8 +16,10 @@ library("uplift")
 library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
-library(causalLearning)
-library(causalTree)
+library("DMwR") #for SMOTE
+library(mlbench)
+library(randomForest)
+library(splitstackshape)
 library("BART")
 
 
@@ -27,7 +29,7 @@ getwd()
 hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
-hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\Hillström Data\\hillstrm.csv", sep=",")
+hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\hillstrm.csv", sep=",")
 
 
 #for use with SMOTE DATA
@@ -67,11 +69,16 @@ for(level in unique(hllstrm$channel)){
 
 
 
-# REMONING UNNECESSARY COLUMNS --------------------------------------------
+# REMOVING UNNECESSARY COLUMNS --------------------------------------------
 
 hllstrm <- hllstrm[,-c(2,6,8,9)] #channel & zip_code not needed after dummification; history_segment redundant; segment replaced by "treatment"
-hllstrm[,c(1,3:7,9:15)] <- apply(hllstrm[,c(1,3:7,9:15)],2, as.numeric)
+hllstrm[,c(3,4,5,6,7,9:15)] <- apply(hllstrm[,c(3,4,5,6,7,9:15)],2, as.integer)
 str(hllstrm)
+
+for(i in c(3,4,5,6,7,9:15)){
+hllstrm[,i] <- as.factor(hllstrm[,i])
+}
+
 
 # TARGET VARIABLE TRANSFORMATION ACCORDING TO GUBELA ----------------------
 
@@ -142,7 +149,7 @@ summary(h_s.train[,c("conversion","treatment")])
 n <- names(hllstrm)
 f_smote_hllstrm <- as.formula(paste("conversion ~",paste(n[!n %in% c("conversion","spend","treatment")], collapse = " + ")))
 
-h_s.train$conversion <- as.factor(h_s.train$conversion)
+#h_s.train$conversion <- as.factor(h_s.train$conversion)
 h_s.train_SMOTE <- SMOTE(f_smote_hllstrm,h_s.train,perc.over = 2000 ,perc.under = 450)
 #good
 
