@@ -6,6 +6,8 @@ library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
 library(randomForest)
+library(bartCause)
+
 
 set.seed(101010)
 
@@ -20,8 +22,8 @@ f_b.train_SMOTE <- read_csv2("/Users/lukaskolbe/Library/Mobile Documents/com~app
 # second part of stratification -------------------------------------------
 
 strat_trainsplit_small <- stratified(f_b.train, c("treatment", "converted"), 0.23, bothSets=TRUE)
-#f_b.train_small <- as.data.frame(strat_split_small[[1]])
-f_b.discard <- as.data.frame(strat_trainsplit_small[[2]])
+f_b.train_small <- as.data.frame(strat_trainsplit_small[[1]])
+#f_b.discard <- as.data.frame(strat_trainsplit_small[[2]])
 
 #OR
 
@@ -89,10 +91,19 @@ system.time(cf_f_b_SMOTE <- foreach(ntree=rep(1000,4),
 )
 stopImplicitCluster()
 
-cf_f_b.preds <- predict(object = cf_f_b, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                        newdata=f_b.test_small,
+cf_f_b <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_f_b.RDS")
+cf_f_b_SMOTE <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_f_b_SMOTE.RDS")
+
+cf_f_b.preds <- predict(object = cf_f_b,
+                        newdata=f_b.test[-c(2,3,4,22,24)],
                         estimate.variance = TRUE)
 
+cf_f_b.preds_SMOTE <- predict(object = cf_f_b_SMOTE,
+                              newdata=f_b.test[-c(2,3,4,22,24)],
+                              estimate.variance = TRUE)
+
+write.csv2(cf_f_b.preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_f_b_preds.csv")
+write.csv2(cf_f_b.preds_SMOTE, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_f_b_preds_SMOTE.csv")
 
 
 # CausalBoosting ----------------------------------------------------------
@@ -129,3 +140,16 @@ upliftRF_f_b2 <- upliftRF(f3,
                           minsplit = 50,
                           verbose = TRUE)
 summary(upliftRF_men)
+
+
+# BART --------------------------------------------------------------------
+
+conf<-as.matrix(data[,-c(2,22)])
+
+system.time(f_b_bart <- bartc(spend, treatment, conf, data=data,
+                              method.rsp = "bart",
+                              method.trt = "bart",
+                              estimand   = "att",
+                              p.scoreAsCovariate = TRUE, 
+                              keepCall = TRUE, 
+                              verbose = TRUE))

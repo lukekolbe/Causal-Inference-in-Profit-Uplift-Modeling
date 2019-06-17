@@ -1,3 +1,6 @@
+library(devtools)
+install_github("vdorie/bartCause")
+
 library(causalTree)
 library(caret)
 library(grf)
@@ -6,10 +9,10 @@ library(causalLearning)
 library(tidyverse)
 library(tools4uplift)
 library(randomForest)
-
-library(devtools)
-install_github("vdorie/bartCause")
 library(bartCause)
+
+
+
 set.seed(101010)
 
 #load smote data if needed for respective model
@@ -53,10 +56,12 @@ system.time(ct_f_a <- causalTree(formula=ct_model.frame,
                                  data=data,
                                  treatment = data$treatment,
                                  split.Rule = "CT", 
+                                 split.Honest = T,
                                  cv.option = "CT",  
                                  cv.Honest = T, 
                                  split.Bucket = T,
                                  xval = 5))
+
 
 # Causal Forest -----------------------------------------------------------
 
@@ -91,9 +96,19 @@ system.time(cf_f_a_dopar <- foreach(ntree=rep(1000,4),
 )
 stopImplicitCluster()
 
-cf_f_a.preds <- predict(object = cf_f_a, ### buggy, throws Error in if (more || nchar(output) > 80) { : missing value where TRUE/FALSE needed
-                        newdata=f_a.test_small,
+cf_f_a <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_f_a.RDS")
+cf_f_a_SMOTE <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_f_a_SMOTE.RDS")
+
+cf_f_a.preds <- predict(object = cf_f_a,
+                        newdata=f_a.test[-c(2,3,4,22,24)],
                         estimate.variance = TRUE)
+
+cf_f_a.preds_SMOTE <- predict(object = cf_f_a_SMOTE,
+                        newdata=f_a.test[-c(2,3,4,22,24)],
+                        estimate.variance = TRUE)
+
+write.csv2(cf_f_a.preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_f_a_preds.csv")
+write.csv2(cf_f_a.preds_SMOTE, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_f_a_preds_SMOTE.csv")
 
 
 
@@ -124,7 +139,7 @@ f3 <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% 
 f3
 
 upliftRF_f_a2 <- upliftRF(f3,
-                          data = traindata2,
+                          data = -c(2,22),
                           mtry = 10,
                           ntree = 1000,
                           split_method = "KL",
@@ -136,14 +151,12 @@ summary(upliftRF_men)
 
 # BART --------------------------------------------------------------------
 
-bartc(response, treatment, confounders, data, subset, weights,
-      method.rsp = c("bart", "p.weight", "tmle"),
-      method.trt = c("none", "glm", "bart", "bart.xval"),
-      estimand   = c("ate", "att", "atc"),
-      group.by = NULL,
-      commonSup.rule = c("none", "sd", "chisq"),
-      commonSup.cut  = c(NA_real_, 1, 0.05),
-      args.rsp = list(), args.trt = list(),
-      p.scoreAsCovariate = TRUE, use.rbart = FALSE,
-      keepCall = TRUE, verbose = TRUE,
-      ...)
+conf<-as.matrix(data[,-c(2,22)])
+
+system.time(f_a_bart <- bartc(spend, treatment, conf, data=data,
+              method.rsp = "bart",
+              method.trt = "bart",
+              estimand   = "att",
+              p.scoreAsCovariate = TRUE, 
+              keepCall = TRUE, 
+              verbose = TRUE))
