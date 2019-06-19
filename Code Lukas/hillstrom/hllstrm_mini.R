@@ -16,7 +16,7 @@ library(grf)
 library("uplift")
 library(causalLearning)
 library(tidyverse)
-library(tools4uplift)
+#library(tools4uplift)
 library("DMwR") #for SMOTE
 library(mlbench)
 library(randomForest)
@@ -34,7 +34,8 @@ hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudD
 hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
 hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\hillstrm.csv", sep=",")
-
+setwd("~/Desktop/apa_data")
+hllstrm = read.csv("Hillstrom.csv", sep=",")
 
 #for use with SMOTE DATA
 h_s.train <- read.csv2("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/SMOTE/h_s.train_SMOTE.csv")
@@ -52,6 +53,8 @@ table(hllstrm$segment)
 
 hllstrm$treatment <- integer(length=nrow(hllstrm))
 hllstrm$treatment <- ifelse(hllstrm$segment=="No E-Mail", 0, 1)
+
+
 
 ### stupid dummyfication of factors for causalboosting
 
@@ -235,6 +238,7 @@ saveRDS(cf_hillstrom_SMOTE, "cf_hillstrom_SMOTE.RDS")
 
 cf_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_hillstrom.RDS")
 
+
 cf_h_s_preds <- predict(object = cf_hillstrom_SMOTE,
                               newdata=h_s.test[, -c(7,8,9)],
                               estimate.variance = TRUE)
@@ -341,3 +345,5 @@ system.time(h_s_bart <- bartc(spend, treatment, conf, data=data,
                               p.scoreAsCovariate = TRUE, 
                               keepCall = TRUE, 
                               verbose = TRUE))
+
+

@@ -30,7 +30,7 @@ getwd()
 f_b <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionB.csv", sep=",")
 #f_b <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/fashion/FashionA.csv", sep=",")
 f_b <- read.csv("H:\\Applied Predictive Analytics\\Data\\FashionB.csv", sep=",")
-
+f_b <- read.csv("/Users/asmir/Desktop/apa_data/FashionB.csv", sep=",")
 # Feature Engineering & variable transformation -------------------------------------------------
 
 f_b$z_var <- 0
@@ -142,3 +142,4 @@ summary(aov(converted  ~ treatment, data=f_b.test_small))
 
 t.test(checkoutAmount ~ treatment, data=f_b.train_SMOTE)
 summary(aov(as.numeric(converted)  ~ treatment, data=f_b.train_SMOTE))
+
