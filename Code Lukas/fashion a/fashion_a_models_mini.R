@@ -160,3 +160,48 @@ system.time(f_a_bart <- bartc(spend, treatment, conf, data=data,
               p.scoreAsCovariate = TRUE, 
               keepCall = TRUE, 
               verbose = TRUE))
+
+
+
+
+# TWO MODEL APPROACH (REGRESSION AND DECISION TREES) ---------------------------------------------------------------
+
+glm_f_a_t <- glm(f, family = gaussian, data=data[data$treatment==1,])
+glm_f_a_c <- glm(f, family = gaussian, data=data[data$treatment==0,])
+
+summary(glm_f_a_t)
+summary(glm_f_a_c)
+
+glm_f_a_t_pred <- predict(glm_f_a_t, f_a.test)
+glm_f_a_c_pred <- predict(glm_f_a_c, f_a.test)
+
+glm_f_a_uplift <- glm_f_a_t_pred-glm_f_a_c_pred
+
+lm_f_a_t <- lm(f, data=data[data$treatment==1,])
+lm_f_a_c <- lm(f, data=data[data$treatment==0,])
+
+summary(lm_f_a_t)
+summary(lm_f_a_c)
+
+lm_f_a_t_pred <- predict(lm_f_a_t, f_a.test)
+lm_f_a_c_pred <- predict(lm_f_a_c, f_a.test)
+
+lm_f_a_uplift <- lm_f_a_t_pred-lm_f_a_c_pred
+head(lm_f_a_uplift)
+
+library(rpart)
+rpart_f_a_t = rpart(f, data=data[data$treatment==1,], cp=0.002, xval=10, model=TRUE)
+#prp(rpart_f_a_t)
+#summary(rpart_f_a_t)
+
+rpart_f_a_c = rpart(f, data=data[data$treatment==0,], cp=0.002, xval=10, model=TRUE)
+#prp(rpart_f_a_c)
+#summary(rpart_f_a_c)
+
+rpart_f_a_t_pred <- predict(rpart_f_a_t, f_a.test)
+rpart_f_a_c_pred <- predict(rpart_f_a_c, f_a.test)
+
+rpart_f_a_uplift <- rpart_f_a_t_pred-rpart_f_a_c_pred
+head(rpart_f_a_uplift)
+
+

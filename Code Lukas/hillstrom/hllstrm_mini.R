@@ -31,7 +31,7 @@ set.seed(101010)
 
 getwd()
 hllstrm <- read.csv("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
-hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
+#hllstrm <- read.csv("/Users/Lukas/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillström Data/hillstrm.csv", sep=",")
 
 hllstrm <- read.csv("H:\\Applied Predictive Analytics\\Data\\hillstrm.csv", sep=",")
 
@@ -105,7 +105,7 @@ trainIndex_all <- c(train_indices_all, recursive=TRUE)
 h_s.train <- hllstrm[-trainIndex_all,]
 h_s.test  <- hllstrm[trainIndex_all,]
 
-table(h_s.train$spend>0, h_s.train$segment)
+table(h_s.train$spend>0, h_s.train$treatment)
 
 str(h_s.train)
 str(h_s.test)
@@ -146,6 +146,7 @@ write.csv2(h_s.test_SMOTE, "h_s.test_SMOTE.csv")
 # }
 
 #PICK ONE:
+names(h_s.train)
 data <- h_s.train
 
 n <- names(data)
@@ -155,37 +156,78 @@ f <- as.formula(paste("spend ~", paste(n[!n %in% c("conversion","treatment", "sp
 # Causal Tree -------------------------------------------------------------
 ct_model.frame <- model.frame(f,data)
 
-system.time(ct_h_s <- causalTree(formula=ct_model.frame, 
+system.time(ct_h_s2 <- causalTree(formula=ct_model.frame, 
                                  data=data,
                                  treatment = data$treatment,
                                  split.Rule = "CT", 
                                  cv.option = "CT",  
                                  cv.Honest = T, 
                                  split.Bucket = T,
+                                 minsplit=50,
+                                 cp=0.002,
                                  xval = 5))
 
 tree_all$cptable
 rpart.plot(tree_all)
 summary(tree_all)
 
-ct_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s2.rds")
-ct_h_s_smote <-readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s_SMOTE2.rds")
-ct_h_s.pred <- data.frame(predict(ct_h_s, h_s.test))
-ct_h_s.pred_smote <- data.frame(predict(ct_h_s_smote, h_s.test))
 
-ct_h_s$var
+
+ct_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s.rds")
+ct_h_s2 <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s2.rds")
+
+ct_h_s_smote <-readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s_SMOTE.rds")
+ct_h_s_smote2 <-readRDS("/Users/lukaskolbe/Documents/HU APA/CausalTrees/ct_h_s_SMOTE2.rds")
+
+ct_h_s.pred <- data.frame(predict(ct_h_s, h_s.test))
+ct_h_s.pred1 <- data.frame(predict(ct_h_s, h_s.train))
+
+ct_h_s.pred2 <- data.frame(predict(ct_h_s2, h_s.test))
+
+ct_h_s.pred_smote <- data.frame(predict(ct_h_s_smote, h_s.test))
+ct_h_s.pred_smote2 <- data.frame(predict(ct_h_s_smote2, h_s.test))
+
+  ct_h_s$var
 
 prop.table(table(ct_h_s.pred$predict.ct_h_s..h_s.test.!=0))
 prop.table(table(ct_h_s.pred_smote$predict.ct_h_s_smote..h_s.test.!=0))
 
 write.csv(ct_h_s.pred, "ct_h_s.pred.csv")
 write.csv(ct_h_s.pred_smote, "ct_h_s.pred_smote.csv")
+
+
+# Honest Trees (Athey) ----------------------------------------------------
+
+tree <- causalTree(f,
+                    data = data,
+                    treatment = data$treatment, split.Rule = "CT",
+                    split.Honest = T, cv.option = "CT", cv.Honest = T,
+                    split.Bucket = F, xval = 10)
+
+opcp <-  tree$cptable[,1][which.min(tree$cptable[,4])]
+opTree <- prune(honestTree, opcp)
+rpart.plot(opTree)
+
+honestTree <- honest.causalTree(f,
+                                data = data,
+                                treatment = data$treatment,
+                                est_data = h_s.test,
+                                est_treatment = h_s.test$treatment,
+                                split.Rule = "CT", split.Honest = T,
+                                HonestSampleSize = nrow(h_s.test),
+                                split.Bucket = T,
+                                cv.option = "fit",
+                                cv.Honest = F)
+
+opcp <-  honestTree$cptable[,1][which.min(honestTree$cptable[,4])]
+opTree <- prune(honestTree, opcp)
+rpart.plot(opTree)
 # CausalForest ------------------------------------------------------------
 
 library(doParallel)
 registerDoParallel(cores=2)
 
-system.time(cf_hillstrom_SMOTE <- foreach(ntree=rep(2000,2),
+system.time(cf_hillstrom <- foreach(ntree=rep(2000,2),
                                     .combine=function(a,b)grf::merge_forests(list(a,b)),
                                     .multicombine=TRUE,.packages='grf') %dopar% {
                                       causal_forest(
@@ -201,31 +243,53 @@ system.time(cf_hillstrom_SMOTE <- foreach(ntree=rep(2000,2),
 )
 stopImplicitCluster()
 
+
+
+cf <- causalForest(as.formula(paste("y~",f)), data=dataTrain,
+                  treatment=dataTrain$w,
+                  split.Rule="CT", 
+                  split.Honest=T,  
+                  split.Bucket=F,
+                  bucketNum = 5,
+                  bucketMax = 100,
+                  cv.option="CT", 
+                  cv.Honest=T, 
+                  minsize = 2L,
+                  split.alpha = 0.5,
+                  cv.alpha = 0.5,
+                  sample.size.total = floor(nrow(dataTrain) / 2), 
+                  sample.size.train.frac = .5,
+                  mtry = ceiling(ncol(dataTrain)/3), 
+                  nodesize = 3, 
+                  num.trees= 5,
+                  ncolx=ncolx,
+                  ncov_samp 
+                  cfpredtest <- predict(cf, newdata=dataTest, type="vector") >plot(dataTest$tau_true,cfpredtest)
 names(data)
 str(data)
 
 
-cf_hillstrom <- causal_forest(
-  X = data[, -c(7,8,9)], #excluding factors (dummified above) and Y-Variables
-  Y = data$spend,
-  W = data$treatment,
-  num.trees = 4000,
-  honesty = TRUE,
-  honesty.fraction = NULL,
-  tune.parameters=TRUE,
-  seed = 1839
-)
-
-cf_hillstrom_SMOTE <- causal_forest(
-  X = data[, -c(1,8,9,10)], #excluding factors (dummified above), X introduced by SMOTE and Y-Variables
-  Y = data$spend,
-  W = data$treatment,
-  num.trees = 4000,
-  honesty = TRUE,
-  honesty.fraction = NULL,
-  tune.parameters=TRUE,
-  seed = 1839
-)
+# cf_hillstrom <- causal_forest(
+#   X = data[, -c(7,8,9)], #excluding factors (dummified above) and Y-Variables
+#   Y = data$spend,
+#   W = data$treatment,
+#   num.trees = 4000,
+#   honesty = TRUE,
+#   honesty.fraction = NULL,
+#   tune.parameters=TRUE,
+#   seed = 1839
+# )
+# 
+# cf_hillstrom_SMOTE <- causal_forest(
+#   X = data[, -c(1,8,9,10)], #excluding factors (dummified above), X introduced by SMOTE and Y-Variables
+#   Y = data$spend,
+#   W = data$treatment,
+#   num.trees = 4000,
+#   honesty = TRUE,
+#   honesty.fraction = NULL,
+#   tune.parameters=TRUE,
+#   seed = 1839
+# )
 
 summary(cf_hillstrom)
 cf_hillstrom$tunable.params
@@ -235,11 +299,12 @@ saveRDS(cf_hillstrom_SMOTE, "cf_hillstrom_SMOTE.RDS")
 
 cf_h_s <- readRDS("/Users/lukaskolbe/Documents/HU APA/CausalForests/cf_hillstrom.RDS")
 
-cf_h_s_preds <- predict(object = cf_hillstrom_SMOTE,
+cf_h_s_preds <- predict(object = cf_hillstrom,
                               newdata=h_s.test[, -c(7,8,9)],
-                              estimate.variance = TRUE)
+                              estimate.variance = TRUE,
+                               seed=1839)
 
-write.csv2(cf_h_s_preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_h_s_preds.csv")
+write.csv2(cf_h_s_preds, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/cf_h_s_preds2.csv")
 
 
 
@@ -274,25 +339,77 @@ varImportance(upliftRF_hllstrm, plotit = FALSE, normalize = TRUE)
 
 # TWO MODEL APPROACH (REGRESSION AND DECISION TREES) ---------------------------------------------------------------
 
-#### THIS IS MY OWN INTERPRETATION OF HOW THE MODEL WORKS
-#### MIGHT VERY WELL BE VERY WRONG!
+glm_h_s_t <- glm(f, family = gaussian, data=data[data$treatment==1,])
+glm_h_s_c <- glm(f, family = gaussian, data=data[data$treatment==0,])
 
-glm_men_treat <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=trainData_mens[trainData_mens$treatment==1,])
-glm_men_contr <- glm(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, family = gaussian, data=control)
+summary(glm_h_s_t)
+summary(glm_h_s_c)
 
-summary(glm_men_treat)
-summary(glm_men_contr)
+glm_h_s_t_pred <- predict(glm_h_s_t, h_s.test)
+glm_h_s_c_pred <- predict(glm_h_s_c, h_s.test)
+
+glm_h_s_uplift <- glm_h_s_t_pred-glm_h_s_c_pred
+
+lm_h_s_t <- lm(f, data=data[data$treatment==1,])
+lm_h_s_c <- lm(f, data=data[data$treatment==0,])
+
+summary(lm_h_s_t)
+summary(lm_h_s_c)
+
+lm_h_s_t_pred <- predict(lm_h_s_t, h_s.test)
+lm_h_s_c_pred <- predict(lm_h_s_c, h_s.test)
+
+lm_h_s_uplift <- lm_h_s_t_pred-lm_h_s_c_pred
+head(lm_h_s_uplift)
 
 library(rpart)
-rpart_contr = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=control, cp=0.0017, xval=10, model=TRUE)
-prp(rpart)
-summary(rpart)
+rpart_h_s_t = rpart(f, data=data[data$treatment==1,], cp=0.002, xval=10, model=TRUE)
+#prp(rpart_h_s_t)
+#summary(rpart_h_s_t)
 
-rpart_men = rpart(spend~recency + history +history_segment + mens + womens + zip_code + newbie + channel, data=trainData_mens[trainData_mens$treatment==1,], cp=0.0017, xval=10, model=TRUE)
-prp(rpart_men)
-summary(rpart_men)
+rpart_h_s_c = rpart(f, data=data[data$treatment==0,], cp=0.002, xval=10, model=TRUE)
+#prp(rpart_h_s_c)
+#summary(rpart_h_s_c)
+
+rpart_h_s_t_pred <- predict(rpart_h_s_t, h_s.test)
+rpart_h_s_c_pred <- predict(rpart_h_s_c, h_s.test)
+
+rpart_h_s_uplift <- rpart_h_s_t_pred-rpart_h_s_c_pred
+head(rpart_h_s_uplift)
+
+### RIDGE/LASSO
+
+library(glmnet)
+
+ridge_model.matrix_t <- model.matrix(f,data[data$treatment==1,])[,-1]
+ridge_model.matrix_c <- model.matrix(f,data[data$treatment==0,])[,-1]
+
+str(glm_model.frame)
+
+yt <- data[data$treatment==1,8]
+yc <- data[data$treatment==0,8]
+
+lambdas <- 10^seq(3, -2, by = -.1)
+
+ridge_h_s_t <- cv.glmnet(x=ridge_model.matrix_t, y=yt, alpha = 0, lambda = lambdas)
+ridge_h_s_c <- cv.glmnet(x=ridge_model.matrix_c, y=yc, alpha = 0, lambda = lambdas)
+
+plot(ridge_h_s_t)
+plot(ridge_h_s_c)
+
+opt_lambda_t <- ridge_h_s_t$lambda.min
+opt_lambda_c <- ridge_h_s_c$lambda.min
 
 
+ridge_prediction.matrix <- model.matrix(f,h_s.test)[,-1]
+
+ridge_h_s_t_predict <- predict(ridge_h_s_t, s = opt_lambda_t, newx = ridge_prediction.matrix)
+ridge_h_s_c_predict <- predict(ridge_h_s_c, s = opt_lambda_c, newx = ridge_prediction.matrix)
+
+
+ridge_h_s_uplift <- ridge_h_s_t_predict-ridge_h_s_c_predict
+
+write.csv(ridge_h_s_uplift, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/Two-model ridge/ridge_h_s_uplift.csv")
 
 
 
@@ -311,17 +428,19 @@ cv.cb_hillstrom <- cv.causalBoosting(data[,-c(7,8,9)],
                                      num.trees=500,
                                      eps=0.3)
 
+cv.cb_hillstrom$
+
 saveRDS(cb_hillstrom, "cb_hillstrom.rds")
 cb_hillstrom <- readRDS("cb_hillstrom.rds")
 
-cv.cb_hillstrom <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Hillstrom results/cv.cb_hillstrom.rds")
+cv.cb_hillstrom <- readRDS("/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/Causalboost results/cv.cb_hillstrom.rds")
 
 
 summary(cb_hillstrom)
-
+cv.cb_hillstrom$cb_hllstrm_pred
 
 cb_hllstrm_pred <- predict(cv.cb_hillstrom, 
-                           newx = h_s.test[, -c(2,6,8,9,11,12,13)], 
+                           newx = h_s.test[, -c(7,8,9)], 
                            type = "treatment.effect",
                            num.trees = 500,
                            honest = FALSE,
@@ -329,6 +448,8 @@ cb_hllstrm_pred <- predict(cv.cb_hillstrom,
 
 summary(cb_hllstrm_pred)
 summary(h_s.train$spend)
+
+write.csv(cb_hllstrm_pred, "/Users/lukaskolbe/Library/Mobile Documents/com~apple~CloudDocs/UNI/Master/Applied Predictive Analytics/Data/predictions/CausalBoost/cb_hllstrm_pred.csv")
 
 # BART --------------------------------------------------------------------
 

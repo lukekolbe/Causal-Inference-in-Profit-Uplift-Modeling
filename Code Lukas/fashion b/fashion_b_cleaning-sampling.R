@@ -43,7 +43,9 @@ table(f_b$controlGroup)
 
 table(f_b$campaignMov, f_b$campaignValue) # minimum order value is different depending on campaignValue (but consistent within value-segments)
 # Idee: uplift (5 Euro Gutschein vs 20 Euro Gutschein ?)
-prop.table(table(f_b$campaignValue)) #campaign value mostly 2000 CURRENCY UNITS, except for ~66700 or 6%
+prop.table(table(f_b$campaignValue)) #campaign value mostly 500 CURRENCY UNITS, except for ~66700 or 6%
+prop.table(table(f_b$campaignMov)) #mov mostly 5000 currency units
+prop.table(table(f_b$campaignUnit)) #only currency units
 
 with(f_b, prop.table(table(campaignValue,controlGroup), margin=1)) # proportions of control/treatment groups seem consistent across treatments
 summary(aov(campaignValue  ~ controlGroup, data=f_b)) 
@@ -191,7 +193,7 @@ f_b <- f_b[,which(names(f_b) %in% c("checkoutAmount","converted","treatment","la
 # trainData_f_b2 <- trainData_small[-trainIndex_f_b2,] # temporarily the train data is only a small partition!
 # testData_f_b2  <- trainData_small[trainIndex_f_b2,]
 # 
-# table(trainData_f_b2$checkoutAmount>0, trainData_f_b2$treatment)
+prop.table(table(f_b$checkoutAmount>0, f_b$treatment))
 # 
 # prop.table(table(trainData_small$converted))
 # prop.table(table(trainData_f_b2$converted))
@@ -278,16 +280,7 @@ fa_niv$nwoe
 
 # Average Treatment Effect (ATE) ---------------------------------------------------
 
-# The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
-# (((which is plausible because of the random sampling)))
-mean(as.numeric(trainData_f_b2$converted[trainData_f_b2$controlGroup==0])) - mean(as.numeric(trainData_f_b2$converted[trainData_f_b2$controlGroup==1]))
-mean(trainData_f_b2$checkoutAmount[trainData_f_b2$controlGroup==0]) - mean(trainData_f_b2$checkoutAmount[trainData_f_b2$controlGroup==1])
-
-# or alternatively:
-experiment <- table(list("Control" = trainData_f_b2$controlGroup, "Converted" = trainData_f_b2$converted))
-experiment
-
-(experiment[1,2]/sum(experiment[1,]) ) - (experiment[2,2]/sum(experiment[2,]) )
+aggregate(checkoutAmount ~ treatment, data=f_b, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=f_b, mean)[1,2] 
 
 
 # DATA SAMPLE INVESTIGATION (DOES NOT WORK)-----------------------------------------------
