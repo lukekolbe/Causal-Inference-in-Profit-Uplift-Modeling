@@ -53,10 +53,10 @@ summary(aov(campaignValue  ~ controlGroup, data=b_t))
 #with(b_t, prop.table(table(converted,controlGroup, campaignValue), margin=1))
 
 table(b_t$checkoutDiscount) #no checkout discounts in the data?!
-prop.table(table(b_t$checkoutAmount>0, b_t$controlGroup)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
+prop.table(table(b_t$checkoutAmount>0, b_t$treatment)) #~5% have a positive checkout amount (3.8% treatment, 1.2% control)
 
 
-treatment_uplift_a <- aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[1,2] - aggregate(checkoutAmount ~ controlGroup, data=b_t, mean)[2,2]
+aggregate(checkoutAmount ~ treatment, data=b_t, mean)[2,2] - aggregate(checkoutAmount ~ treatment, data=b_t, mean)[1,2]
 treatment_uplift_a #the treatment gives an average uplift across the whole population of 0.4892036
 summary(aov(checkoutAmount  ~ controlGroup, data=b_t)) # the differences in checkout amount are statistically significant!
 t.test(checkoutAmount ~ controlGroup, data=b_t) # the differences in checkout amount are statistically significant!
