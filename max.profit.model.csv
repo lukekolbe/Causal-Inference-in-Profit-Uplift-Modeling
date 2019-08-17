@@ -1,0 +1,11 @@
+"";"FashionA";"FashionB";"BooksToys";"Hillstrom"
+"2Model_Ridge";"Decile: 10 | Profit: 32882.21";"Decile: 7 | Profit: 51337.77";"Decile: 3 | Profit: 57589.46";"Decile: 2 | Profit: 17664.13"
+"2Model_Ridge_60";"Decile: 10 | Profit: 27725.18";"Decile: 9 | Profit: 40099.10";"Decile: 5 | Profit: 66415.96";NA
+"causalTree";"Decile: 8 | Profit: 41464.31";"Decile: 6 | Profit: 42266.43";"Decile: 3 | Profit: 38520.97";"Decile: 1 | Profit: 12279.53"
+"causalTree_large";"Decile: 9 | Profit: 36081.61";"Decile: 9 | Profit: 44035.73";NA;NA
+"causalForest";"Decile: 9 | Profit: 49793.00";"Decile: 6 | Profit: 38564.14";"Decile: 1 | Profit: 29905.82";"Decile: 1 | Profit: 4045.02"
+"causalForest_60";"Decile: 10 | Profit: 33875.04";"Decile: 6 | Profit: 38798.01";"Decile: 2 | Profit: 243.91";NA
+"causalBart";"Decile: 10 | Profit: 35102.80";"Decile: 8 | Profit: 36030.50";"Decile: 2 | Profit: 60542.92";"Decile: 1 | Profit: 16038.44"
+"causalBart_60";"Decile: 10 | Profit: 25080.77";"Decile: 8 | Profit: 68023.31";"Decile: 1 | Profit: 18374.10";NA
+"causalBoosting";"Decile: 10 | Profit: 31901.09";"Decile: 8 | Profit: 71686.02";"Decile: 2 | Profit: 32534.33";"Decile: 5 | Profit: 2644.98"
+"ensemble";"Decile: 10 | Profit: 30277.31";"Decile: 9 | Profit: 48327.68";"Decile: 3 | Profit: 56250.94";"Decile: 3 | Profit: 12890.85"
