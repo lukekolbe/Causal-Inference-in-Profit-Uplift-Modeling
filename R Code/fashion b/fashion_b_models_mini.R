@@ -3,13 +3,17 @@ source("R Code/misc code/load-packages.R")
 
 set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rounding")
 
+# load pre-processed data (28 features)
 f_b.train_small <- read.csv("working data/small set/f_b_train_small_28.csv")[,-1]
 f_b.test <- read.csv("working data/small set/f_b_test_28.csv")[,-1]
+#f_b.estimation <- read.csv("working data/small set/f_b_estimation_28.csv")[,-1] #only for honest.causalTree
 
-f_b.estimation <- read.csv("working data/small set/f_b_estimation_28.csv")[,-1]
+# load pre-processed data (~60 features)
+f_b.train_small <- read.csv("working data/large set/f_b_train_small_60.csv")[,-1]
+f_b.test <- read.csv("working data/large set/f_b_test_60.csv")[,-1]
+#f_b.estimation <- read.csv("working data/large set/f_b_estimation_60.csv")[,-1] #only for honest.causalTree
 
 
-#for MAX configuration:
 data <- f_b.train_small
 
 exclude.vars <- c("converted","checkoutAmount","treatment",
@@ -89,14 +93,6 @@ cb_f_b.pred <- predict(cv.cb_f_b,
 
 # BART --------------------------------------------------------------------
 
-# install.packages("testthat")
-# context("common support diagnostics")
-# library(testthat)
-# library(bartCause)
-# 
-# source(system.file("common", "linearData.R", package = "bartCause"))
-# 
-
 data <- f_b.train_small
 conf<-as.matrix(data[,-which(names(data) %in% exclude.vars)])
 
@@ -116,10 +112,6 @@ system.time(fit2 <- bartc(y, z, x, method.trt = "bart", method.rsp = "bart",
                           keepTrees = TRUE,
                           verbose = FALSE))
 
-
-# check predict for single row
-#expect_equal(length(predict(fit, x.new[1,], value = "y0")), n.samples * n.chains)
-
 #p.score <- predict(fit, x.new, value = "p.score")
 #y      <- predict(fit, x.new, value = "y", combineChains = FALSE)
 y1_att  <- predict(fit, x.new, value = "y1", combineChains = TRUE)
@@ -130,7 +122,6 @@ pred_att <- data.frame(rowMeans(y1_att))
 
 
 # RIDGE/LASSO -------------------------------------------------------------
-
 n <- names(data)
 f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% exclude.vars], collapse = " + ")))
 
@@ -140,6 +131,7 @@ yt <- data[data$treatment==1,which(names(data) %in% c("checkoutAmount"))]
 yc <- data[data$treatment==0,which(names(data) %in% c("checkoutAmount"))]
 lambdas <- 10^seq(3, -2, by = -.1)
 
+set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rounding")
 ridge_f_b_t <- cv.glmnet(x=ridge_model.matrix_t, y=yt, lambda = lambdas, alpha = 0)
 ridge_f_b_c <- cv.glmnet(x=ridge_model.matrix_c, y=yc, lambda = lambdas, alpha = 0)
 

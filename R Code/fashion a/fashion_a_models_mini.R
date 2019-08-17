@@ -6,10 +6,12 @@ set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.ki
 # load pre-processed data (28 features)
 f_a.train_small <- read.csv("working data/small set/f_a_train_small_28.csv")[,-1]
 f_a.test <- read.csv("working data/small set/f_a_test_28.csv")[,-1]
+#f_a.estimation <- read.csv("working data/small set/f_a_estimation_28.csv")[,-1] #only for honest.causalTree
 
-f_a.estimation <- read.csv("working data/small set/f_a_estimation_28.csv")[,-1]
-
-
+# load pre-processed data (~60 features)
+f_a.train_small <- read.csv("working data/large set/f_a_train_small_60.csv")[,-1]
+f_a.test <- read.csv("working data/large set/f_a_test_60.csv")[,-1]
+#f_a.estimation <- read.csv("working data/large set/f_a_estimation_60.csv")[,-1] #only for honest.causalTree
 
 data <- f_a.train_small
 
@@ -128,13 +130,12 @@ f <- as.formula(paste("checkoutAmount ~", paste(n[!n %in% exclude.vars], collaps
 ridge_model.matrix_t <- model.matrix(f,data[data$treatment==1,])[,-1]
 ridge_model.matrix_c <- model.matrix(f,data[data$treatment==0,])[,-1]
 
-names(ridge_model.matrix_t)
-
 yt <- data[data$treatment==1,which(names(data) %in% c("checkoutAmount"))]
 yc <- data[data$treatment==0,which(names(data) %in% c("checkoutAmount"))]
 
 lambdas <- 10^seq(3, -2, by = -.1)
 
+set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.kind = "Rounding")
 ridge_f_a_t <- cv.glmnet(x=ridge_model.matrix_t, y=yt, alpha = 0, lambda = lambdas)
 ridge_f_a_c <- cv.glmnet(x=ridge_model.matrix_c, y=yc, alpha = 0, lambda = lambdas)
 

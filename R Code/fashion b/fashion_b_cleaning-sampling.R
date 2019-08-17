@@ -95,9 +95,12 @@ highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, 
 f_b <- f_b[,-which(names(f_b) %in% c(highlyCorrelated))]
 
 # Uplift NIV --------------------------------------------------------------
+exclude.vars <- c("converted","checkoutAmount","treatment",
+                  "eligibility", "ExpectedDiscount", "aborted", 
+                  "confirmed", "campaignMov", "campaignValue", "campaignUnit")
 
 n <- names(f_b)
-f_niv_fb <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% c("converted","checkoutAmount","treatment","eligibility", "ExpectedDiscount")], collapse = " + ")))
+f_niv_fb <- as.formula(paste("converted ~", paste("trt(treatment) +"),paste(n[!n %in% exclude.vars], collapse = " + ")))
 
 fb_niv <- niv(f_niv_fb, f_b, subset=NULL, na.action = na.pass, B = 10, direction = 1, 
               nbins = 10, continuous = 4, plotit = TRUE)
