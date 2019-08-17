@@ -1,4 +1,5 @@
 # Function Evaluation setup ----------------------------------------------------------------
+# This function uses our test dataset and model predictions to compute a model performance matrix 
 predEval <- function(t.d, p){
   
   # We rank the uplift scores from high to low and add this infromation to a dataframe
@@ -8,7 +9,7 @@ predEval <- function(t.d, p){
     treatment = t.d$treatment,
     uplift_rank = length(p) + 1 - rank(p, ties.method = "random")
   )
-  
+  # We define deciles (groups), which get used in the literature to evaluate our model performance across 10 equally sized sub populations
   groups = 10
   bk_pred = unique(quantile(mm_pred[, 4], probs = seq(0, 1, 1 / groups)))
   
@@ -18,6 +19,7 @@ predEval <- function(t.d, p){
       groups
     )
   }
+  # We add the deciles to our model matrix 
   mm_pred = cbind(mm_pred,
                   decile = cut(
                     mm_pred[, 4],
@@ -25,7 +27,7 @@ predEval <- function(t.d, p){
                     labels = NULL,
                     include.lowest = T
                   ))
-  
+  # We compute the following variables from our model matrix
   pred_n.y1_ct0 <- tapply(mm_pred[mm_pred[, 3] == 0,][, 2], mm_pred[mm_pred[, 3] == 0,][, 5], sum)  # Sum of revenue of people not having received the treatment
   pred_n.y1_ct1 <- tapply(mm_pred[mm_pred[, 3] == 1,][, 2], mm_pred[mm_pred[, 3] == 1,][, 5], sum)  # Sum of revenue of people having received the treatment
   pred_r.y1_ct0 <- tapply(mm_pred[mm_pred[, 3] == 0,][, 2], mm_pred[mm_pred[, 3] == 0,][, 5], mean) # Average revenue of people not having received the treatment
@@ -37,9 +39,9 @@ predEval <- function(t.d, p){
   # We set these to 0.
   pred_r.y1_ct0 <- ifelse(is.na(pred_r.y1_ct0), 0, pred_r.y1_ct0)
   pred_r.y1_ct1 <- ifelse(is.na(pred_r.y1_ct1), 0, pred_r.y1_ct1)
-  
+  # The uplift is the difference of the sum of reveues between our treatment and control group
   uplift = pred_r.y1_ct1 - pred_r.y1_ct0
-  
+  # We bind our previously computed variables together to a performance matrix 
   perf_pred <- cbind(group   = c(1:10),
                      n.ct1    = pred_n.ct1,
                      n.ct0    = pred_n.ct0, 
@@ -160,40 +162,44 @@ predUPD <- function(n, t) {
 }
 
 # QINI Score ---------------------------------------------------------------
+# This function calculates the Qini score for our model 
 predQini_score <- function(n, t) {
   
   perf_pred <- model.performance[[1]]
   
   groups = 10
-  pred_r.cumul.y1_ct1 <- cumsum(perf_pred[, "n.y1_ct1"]) / cumsum(perf_pred[, "n.ct1"])
-  pred_r.cumul.y1_ct0 <- cumsum(perf_pred[, "n.y1_ct0"]) / cumsum(perf_pred[, "n.ct0"])
+  pred_r.cumul.y1_ct1 <- cumsum(perf_pred[, "n.y1_ct1"]) / cumsum(perf_pred[, "n.ct1"]) # Cumulative revenue per treated person  
+  pred_r.cumul.y1_ct0 <- cumsum(perf_pred[, "n.y1_ct0"]) / cumsum(perf_pred[, "n.ct0"]) # Cumulative revene per controlled person
   deciles <- seq(1 / groups, 1, 1 / groups)
-  pred_r.cumul.y1_ct1[is.na(pred_r.cumul.y1_ct1)] <- 0
+  pred_r.cumul.y1_ct1[is.na(pred_r.cumul.y1_ct1)] <- 0 # If they are missing set them to zero
   pred_r.cumul.y1_ct0[is.na(pred_r.cumul.y1_ct0)] <- 0
-  pred_inc.gains = c(0.0, (pred_r.cumul.y1_ct1 - pred_r.cumul.y1_ct0) * deciles)
-  pred_overall.inc.gains <- sum(perf_pred[, "n.y1_ct1"]) / sum(perf_pred[, "n.ct1"]) - sum(perf_pred[, "n.y1_ct0"]) / sum(perf_pred[, "n.ct0"])
-  pred_random.inc.gains <- c(0, cumsum(rep(pred_overall.inc.gains / groups, groups)))
+  pred_inc.gains = c(0.0, (pred_r.cumul.y1_ct1 - pred_r.cumul.y1_ct0) * deciles) # The incremental gains 
+  pred_overall.inc.gains <- sum(perf_pred[, "n.y1_ct1"]) / sum(perf_pred[, "n.ct1"]) - sum(perf_pred[, "n.y1_ct0"]) / sum(perf_pred[, "n.ct0"]) # ATE
+  pred_random.inc.gains <- c(0, cumsum(rep(pred_overall.inc.gains / groups, groups))) # A cumulation of equal random gains which end up at the ATE
   pred_x <- c(0.0, seq(1 / groups, 1, 1 / groups))
-  pred_y <- pred_inc.gains
+  pred_y <- pred_inc.gains 
   pred_auuc <- 0
   pred_auuc.rand <- 0
+  # calculating the Qini curve
   for (i in 2:length(pred_x)) {
     pred_auuc <-
       pred_auuc + 0.5 * (pred_x[i] - pred_x[i - 1]) * (pred_y[i] + pred_y[i-1])
   }
+  # calculating the random curve
   pred_y.rand <- pred_random.inc.gains
   for (i in 2:length(pred_x)) {
     pred_auuc.rand <-
       pred_auuc.rand + 0.5 * (pred_x[i] - pred_x[i - 1]) * (pred_y.rand[i] + pred_y.rand[i -
                                                                                            1])
   }
-  
+  # calculating the Qini
   qini.matrix[t, which(names(qini.matrix) %in% paste(n))] <-
     pred_auuc - pred_auuc.rand
   return(qini.matrix)
 }
 
 # QINI Plot ---------------------------------------------------------------
+# Function to plot the Qini curve 
 predQini_plot <- function(n,t){
 
   perf_pred <- model.performance[[1]]
@@ -267,16 +273,29 @@ predQini_plot <- function(n,t){
 }
 
 # Function Profit ----------------------------------------------------------------
+# Function to calculate the campaign profits
 predProfit <- function(n,t,t.d,p) {
 
   mm_pred <- model.performance[[2]]
+  
+  
+  t.d$uplift <- p
+  t.d$m.eligibility <- ifelse(((p + t.d$checkoutAmount) >= t.d$campaignMov / 100)&t.d$treatment==0,1,0)
+  t.d$m.ExpectedDiscount <- numeric(nrow(t.d))
+  t.d$m.ExpectedDiscount[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1] <- 
+    t.d$campaignValue[t.d$campaignUnit=="CURRENCY"&t.d$eligibility==1]/100
+  
+  t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] <- 
+    ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] + 
+        t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1])*(t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1]/10000))
   
   mm_pred = cbind(
     mm_pred,
     eligibility = t.d$eligibility,
     expectedDiscount = t.d$ExpectedDiscount,
     m.eligible = ifelse((
-      p + t.d$checkoutAmount + t.d$ExpectedDiscount) >= t.d$campaignMov / 100,1,0))# model eligible
+      p + t.d$checkoutAmount) >= t.d$campaignMov / 100,1,0
+      ))# model eligible
   
   
   pred_n.y1_ct0 <- tapply(mm_pred[mm_pred[, 3] == 0,][, 2], mm_pred[mm_pred[, 3] == 0,][, 5], sum)  # Sum of revenue of people not having received the treatment
@@ -296,10 +315,10 @@ predProfit <- function(n,t,t.d,p) {
   pred_n.ct1.eligible <- tapply(mm_pred[mm_pred[, 6] == 1,][, 6],
                                 mm_pred[mm_pred[, 6] == 1,][, 5], length)  # Sum of people having received the treatment
   
-  # additional costs by treating customers, here handing out 20€ vouchers
+  # Additional costs by treating customers, here handing out 20€ vouchers
   pred_campaign_cost <-
-    tapply(mm_pred[mm_pred[, 6] == 1,][, 7], #give me all rows of column 7 (expectedDiscount) where eligible == 1
-           mm_pred[mm_pred[, 6] == 1,][, 5], sum) #group them by decile and compute the sum for each decile
+    tapply(mm_pred[mm_pred[, 6] == 1,][, 7], #Give me all rows of column 7 (expectedDiscount) where eligible == 1
+           mm_pred[mm_pred[, 6] == 1,][, 5], sum) #Group them by decile and compute the sum for each decile
   #pred_campaign_cost = pred_n.ct1.eligible[,1] * test.data$ExpectedDiscount
   
   # ADDITIONAL revenue generated by the campaign as per our model
@@ -309,7 +328,7 @@ predProfit <- function(n,t,t.d,p) {
   # pred_campaign_revenue <- tapply(mm_pred[mm_pred[, 3]== 1, ][, 1], #give me all rows of column 1 (uplift) where treatment == 1
   #                              mm_pred[mm_pred[, 3] == 1, ][, 5], sum) #group them by decile and compute the sum for each decile
   
-  pred_campaign_revenue = pred_n.ct1 * pred_r.y1_ct1 - pred_r.y1_ct0
+  pred_campaign_revenue = pred_n.ct1 * (pred_r.y1_ct1 - pred_r.y1_ct0)
   #pred_campaign_revenue = pred_n.ct1 * df_pred$uplift
   
   pred_campaign_profit = pred_campaign_revenue - pred_campaign_cost # difference between additional campaign reveue and additional camapign costs

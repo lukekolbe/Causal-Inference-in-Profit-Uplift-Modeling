@@ -23,14 +23,16 @@ f_a$ExpectedDiscount[f_a$campaignUnit=="CURRENCY"&f_a$eligibility==1] <- f_a$cam
 
 # The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
 # (((which is plausible because of the random sampling)))
-mean(as.numeric(trainData_f_a2$converted[trainData_f_a2$controlGroup==0])) - mean(as.numeric(trainData_f_a2$converted[trainData_f_a2$controlGroup==1]))
-mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==0]) - mean(trainData_f_a2$checkoutAmount[trainData_f_a2$controlGroup==1])
+mean(as.numeric(f_a$converted[f_a$treatment==1])) - mean(as.numeric(f_a$converted[f_a$treatment==0]))
+mean(f_a$checkoutAmount[f_a$treatment==1]) - mean(f_a$checkoutAmount[f_a$treatment==0])
 
 # or alternatively:
-experiment <- table(list("Control" = trainData_f_a2$controlGroup, "Converted" = trainData_f_a2$converted))
+experiment <- table(list("Treatment" = f_a$treatment, "Converted" = f_a$converted))
 experiment
 
-(experiment[1,2]/sum(experiment[1,]) ) - (experiment[2,2]/sum(experiment[2,]) )
+(experiment[2,2]/sum(experiment[2,])) - (experiment[1,2]/sum(experiment[1,]) )
+
+
 # str(f_a)
 # table(f_a$treatment)
 # 
