@@ -1,0 +1,11 @@
+"";"FashionA";"FashionB";"BooksToys";"Hillstrom"
+"2Model_Ridge";"Decile: 9 | ROI: 1.17";"Decile: 7 | ROI: 2.51";"Decile: 1 | ROI: 3.92";"Decile: 1 | ROI: 10.39"
+"2Model_Ridge_60";"Decile: 10 | ROI: 0.95";"Decile: 9 | ROI: 1.53";"Decile: 1 | ROI: 35.92";NA
+"causalTree";"Decile: 3 | ROI: 2.58";"Decile: 6 | ROI: 2.38";"Decile: 1 | ROI: 3.23";"Decile: 1 | ROI: 7.67"
+"causalTree_large";"Decile: 7 | ROI: 1.58";"Decile: 2 | ROI: 2.19";NA;NA
+"causalForest";"Decile: 9 | ROI: 1.96";"Decile: 6 | ROI: 2.25";"Decile: 1 | ROI: 3.16";"Decile: 1 | ROI: 2.53"
+"causalForest_60";"Decile: 8 | ROI: 1.28";"Decile: 6 | ROI: 2.30";"Decile: 2 | ROI: 0.01";NA
+"causalBart";"Decile: 8 | ROI: 1.21";"Decile: 8 | ROI: 1.53";"Decile: 1 | ROI: 3.24";"Decile: 1 | ROI: 10.02"
+"causalBart_60";"Decile: 10 | ROI: 0.86";"Decile: 5 | ROI: 3.08";"Decile: 1 | ROI: 0.58";NA
+"causalBoosting";"Decile: 10 | ROI: 1.10";"Decile: 8 | ROI: 3.12";"Decile: 2 | ROI: 1.76";"Decile: 1 | ROI: 0.79"
+"ensemble";"Decile: 10 | ROI: 1.04";"Decile: 4 | ROI: 2.54";"Decile: 1 | ROI: 2.37";"Decile: 2 | ROI: 2.98"
