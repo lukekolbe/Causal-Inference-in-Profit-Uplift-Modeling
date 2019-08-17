@@ -8,8 +8,8 @@ set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.ki
 data.zoo <- c("FashionA", "FashionB", "BooksToys", "Hillstrom")
 model.zoo <- c("2Model_Ridge","2Model_Ridge_60","causalTree", "causalTree_large", "causalForest","causalForest_60", "causalBart", "causalBart_60", "causalBoosting", "ensemble")
 
-qini.matrix_28 <- setNames(data.frame(matrix(ncol = 4, nrow = 10)), data.zoo)
-rownames(qini.matrix_28) <- model.zoo
+qini.matrix <- setNames(data.frame(matrix(ncol = 4, nrow = 10)), data.zoo)
+rownames(qini.matrix) <- model.zoo
 
 max.profit.model <- setNames(data.frame(matrix(ncol = 4, nrow = 10)), data.zoo)
 rownames(max.profit.model) <- model.zoo
@@ -57,7 +57,7 @@ for(i in seq_along(1:10)){
   # plotting Uplift Per Decile (UPD)
   predUPD(n=f_a_eval_FULL[[i]]$name,t=f_a_eval_FULL[[i]]$title)
   # Computing Qini Score for all models
-  qini.matrix_28 <- predQini_score(n=f_a_eval_FULL[[i]]$name,t=f_a_eval_FULL[[i]]$title)
+  qini.matrix <- predQini_score(n=f_a_eval_FULL[[i]]$name,t=f_a_eval_FULL[[i]]$title)
   # Plotting Qini Curve and saving Plot to getwd()
   predQini_plot(n=f_a_eval_FULL[[i]]$name,t=f_a_eval_FULL[[i]]$title)
   # calculating Profit per Model and best Deciles to treat for profit maximization
@@ -104,7 +104,7 @@ for(i in seq_along(1:10)){
   # plotting Uplift Per Decile (UPD)
   predUPD(n=f_b_eval_FULL[[i]]$name,t=f_b_eval_FULL[[i]]$title)
   # Computing Qini Score for all models
-  qini.matrix_28 <- predQini_score(n=f_b_eval_FULL[[i]]$name,t=f_b_eval_FULL[[i]]$title)
+  qini.matrix <- predQini_score(n=f_b_eval_FULL[[i]]$name,t=f_b_eval_FULL[[i]]$title)
   # Plotting Qini Curve and saving Plot to getwd()
   predQini_plot(n=f_b_eval_FULL[[i]]$name,t=f_b_eval_FULL[[i]]$title)
   # calculating Profit per Model and best Deciles to treat for profit maximization
@@ -149,7 +149,7 @@ for(i in seq_along(1:8)){
   # plotting Uplift Per Decile (UPD)
   predUPD(n=b_t_eval_FULL[[i]]$name,t=b_t_eval_FULL[[i]]$title)
   # Computing Qini Score for all models
-  qini.matrix_28 <- predQini_score(n=b_t_eval_FULL[[i]]$name,t=b_t_eval_FULL[[i]]$title)
+  qini.matrix <- predQini_score(n=b_t_eval_FULL[[i]]$name,t=b_t_eval_FULL[[i]]$title)
   # Plotting Qini Curve and saving Plot to getwd()
   predQini_plot(n=b_t_eval_FULL[[i]]$name,t=b_t_eval_FULL[[i]]$title)
   # calculating Profit per Model and best Deciles to treat for profit maximization
@@ -167,7 +167,7 @@ set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.ki
 model.performance <- predEval(t.d=test.data,p=predictions)
 predARPD(name,title)
 predUPD(name,title)
-qini.matrix_28 <- predQini_score(name,title)
+qini.matrix <- predQini_score(name,title)
 predQini_plot(name,title)
 model.profit <- predProfit(n=name, t=title, t.d=test.data, p=predictions)
 max.profit.model <- model.profit[[1]] # extracting results from predProfit (returns list() with two elements) and storing
@@ -209,7 +209,7 @@ for(i in seq_along(1:5)){
   # plotting Uplift Per Decile (UPD)
   predUPD(n=h_s_eval_FULL[[i]]$name,t=h_s_eval_FULL[[i]]$title)
   # Computing Qini Score for all models
-  qini.matrix_28 <- predQini_score(n=h_s_eval_FULL[[i]]$name,t=h_s_eval_FULL[[i]]$title)
+  qini.matrix <- predQini_score(n=h_s_eval_FULL[[i]]$name,t=h_s_eval_FULL[[i]]$title)
   # Plotting Qini Curve and saving Plot to getwd()
   predQini_plot(n=h_s_eval_FULL[[i]]$name,t=h_s_eval_FULL[[i]]$title)
   # calculating Profit per Model and best Deciles to treat for profit maximization
@@ -232,7 +232,7 @@ set.seed(101010, kind = "Mersenne-Twister", normal.kind = "Inversion", sample.ki
 model.performance <- predEval(t.d=test.data,p=predictions)
 predARPD(name,title)
 predUPD(name,title)
-qini.matrix_28 <- predQini_score(name,title)
+qini.matrix <- predQini_score(name,title)
 predQini_plot(name,title)
 model.profit <- predProfit(n=name, t=title, t.d=test.data, p=predictions)
 max.profit.model <- model.profit[[1]] # extracting results from predProfit (returns list() with two elements) and storing
