@@ -31,7 +31,7 @@ b_t <- b_t[-which(b_t$campaignUnit=="PERCENT"   &b_t$campaignValue==1600),] # on
 
 b_t$ExpectedDiscount <- numeric(nrow(b_t))
 b_t$ExpectedDiscount[b_t$campaignUnit=="CURRENCY"&b_t$eligibility==1] <- b_t$campaignValue[b_t$campaignUnit=="CURRENCY"&b_t$eligibility==1]/100
-b_t$ExpectedDiscount[b_t$campaignUnit=="PERCENT"] <- (b_t$checkoutAmount[b_t$campaignUnit=="PERCENT"]/(1-b_t$campaignValue[b_t$campaignUnit=="PERCENT"]/10000))-b_t$checkoutAmount[b_t$campaignUnit=="PERCENT"]
+b_t$ExpectedDiscount[b_t$campaignUnit=="PERCENT"&b_t$eligibility==1] <- (b_t$checkoutAmount[b_t$campaignUnit=="PERCENT"&b_t$eligibility==1]/(1-b_t$campaignValue[b_t$campaignUnit=="PERCENT"&b_t$eligibility==1]/10000))-b_t$checkoutAmount[b_t$campaignUnit=="PERCENT"&b_t$eligibility==1]
 
 
 # Decriptive Analysis ------------------
