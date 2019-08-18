@@ -92,8 +92,9 @@ predARPD <- function(n, t) {
       axis.line.x = element_blank(),
       axis.line.y = element_blank(),
       axis.ticks.x = element_blank(),
-      axis.text.x = element_text(size = 12),
-      axis.text.y = element_text(size = 12)
+      axis.text.x = element_text(size = 14),
+      axis.text.y = element_text(size = 14), 
+      axis.title=element_text(size=15,face="bold")
     ) +
     labs(
       title = paste("Average Revenue Per Decile -", t),
@@ -122,6 +123,7 @@ predUPD <- function(n, t) {
 
   temp.df_pred.uplift <-
     data.frame(Deciles = seq(1:10), Uplift = perf_pred[, 6] - perf_pred[, 7])
+  
   upd.title <- "upd"
   upd.plot <- ggplot(temp.df_pred.uplift, aes(x = Deciles)) +
     geom_bar(stat = "identity", aes(y = Uplift, fill = "red")) +
@@ -139,13 +141,26 @@ predUPD <- function(n, t) {
     theme(
       axis.line.x = element_blank(),
       axis.ticks.x = element_blank(),
-      axis.text.x = element_text(size = 12),
-      axis.text.y = element_text(size = 12)
+      axis.text.x = element_text(size = 14),
+      axis.text.y = element_text(size = 14), 
+      axis.title=element_text(size=15,face="bold")
     ) +
     labs(title = paste("Uplift Per Decile -", t),
          subtitle = paste("Data:", n)) +
     theme(plot.title = element_text(face = "bold")) +
     guides(fill = FALSE)
+  
+  
+  # +  
+  #   xlab("Dataset") + ylab("Share of spend > 0")+
+  #   theme(
+  #     axis.line.x = element_blank(),
+  #     axis.ticks.x = element_blank(),
+  #     axis.text.x = element_text(size = 14),
+  #     axis.text.y = element_text(size = 14), 
+  #     axis.title=element_text(size=15,face="bold")
+  #   )+
+  #   geom_text(size = 4, position = position_stack(vjust = 0.5))
   
   ggsave(filename=paste(n, t, upd.title, ".png", sep="_"), 
          plot = upd.plot, 
@@ -251,8 +266,9 @@ predQini_plot <- function(n,t){
     theme(
       axis.line.x = element_blank(),
       axis.ticks.x = element_blank(),
-      axis.text.x = element_text(size = 12),
-      axis.text.y = element_text(size = 12)
+      axis.text.x = element_text(size = 14),
+      axis.text.y = element_text(size = 14), 
+      axis.title=element_text(size=15,face="bold")
     ) +
     labs(title = paste("Qini Curve - ", t),
          subtitle = paste("Data:", n)) +
@@ -279,15 +295,44 @@ predProfit <- function(n,t,t.d,p) {
   mm_pred <- model.performance[[2]]
   
   t.d$uplift <- p
-  t.d$m.eligibility <- ifelse(((p + t.d$checkoutAmount) >= t.d$campaignMov / 100),1,0)
-  t.d$m.ExpectedDiscount <- numeric(nrow(t.d))
-  {t.d$m.ExpectedDiscount[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1] <- 
-    t.d$campaignValue[t.d$campaignUnit=="CURRENCY"&t.d$eligibility==1]/100
+  #the eligibility rule for those who are newly eligible as per our model
+  t.d$m.eligibility[t.d$eligibility==0] <- ifelse(((t.d$uplift[t.d$eligibility==0] + 
+                                                      t.d$checkoutAmount[t.d$eligibility==0]) >= t.d$campaignMov[t.d$eligibility==0] / 100),1,0)
   
-  t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] <- 
-    ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] + 
-        t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1])*(t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1]/10000))
-  }
+  t.d$m.eligibility[t.d$eligibility==1] <- ifelse(((t.d$uplift[t.d$eligibility==1] + 
+                                                      t.d$checkoutAmount[t.d$eligibility==1] + 
+                                                      t.d$ExpectedDiscount[t.d$eligibility==1]) >= t.d$campaignMov[t.d$eligibility==1] / 100),1,0)
+  
+  #the eligibility rule for those who are eligible as per our model but were also eligible before
+  t.d$m.ExpectedDiscount <- numeric(nrow(t.d))
+  t.d$m.ExpectedDiscount[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1] <-
+    t.d$campaignValue[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1]/100
+  
+  # for those newly eligible we take the checkoutAmount (which is revenue), 
+  # add the treatment effect, and compute the discount they receive as percentage of their revenue
+  t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==0] <-
+    ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==0] + # (checkoutAmount + uplift (predicted)) * campaignValue
+        t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==0])*
+       (t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==0]/10000))
+  
+  # for those already eligible we set the expected Discount as per our Model differently:
+  # since the checkoutAmount for those sessions has already internalized treatment cost, 
+  # we add the estimated ExpectedDiscount to the checkoutAmount as well as the Uplift as predicted by the model
+  # This is not entirely correct, but otherwise we would compute a discount on top of a discount, 
+  # since people who were eligible in the original campaign have cost internalized.
+  t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1] <- 
+    ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1] 
+      + t.d$ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1]
+      + t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1])
+     * (t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1]/10000))
+  
+  # t.d$m.ExpectedDiscount[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1] <- # for those newly eligible
+  # t.d$campaignValue[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1]/100
+  # 
+  # t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] <- 
+  #   ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] + 
+  #       t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1])*(t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1]/10000))
+  # 
   
   mm_pred = cbind(
     mm_pred,
@@ -318,14 +363,15 @@ predProfit <- function(n,t,t.d,p) {
   pred_n.m.eligible = tapply(mm_pred[mm_pred[, 8] == 1,][, 8],
                              mm_pred[mm_pred[, 8] == 1,][, 5], length) # number of eligible customers in the model campaign (model campaign := campaign according to our model)
 
-  delta.eligible <- pred_n.m.eligible - pred_n.ct1.eligible
-  
   #helper function that adds columns in case last deciles are left empty
   if(length(pred_n.m.eligible)<10){
-    for(i in seq_along(1:(10-length(pred_n.m.eligible)))){
-      pred_n.m.eligible[length(pred_n.m.eligible)+i] <- 0
-     }
+    length <- (length(pred_n.m.eligible)+1)
+    for(i in c(length:10)){
+      pred_n.m.eligible[i] <- 0
+    }
   }
+  
+  delta.eligible <- pred_n.m.eligible - pred_n.ct1.eligible
   
   #length(pred_n.m.eligible)
   
@@ -333,15 +379,22 @@ predProfit <- function(n,t,t.d,p) {
                   mm_pred[mm_pred[, 8] == 1,][, 5], sum) #group them by decile and compute the sum for each decile
   
   #helper function that adds columns in case last deciles are left empty
-  if(length(m.cost)<10){ 
-    for(i in seq_along(1:(10-length(m.cost)))){
-      m.cost[length(m.cost)+i] <- 0
+  if(length(m.cost)<10){
+    length <- (length(m.cost)+1)
+    for(i in c(length:10)){
+      m.cost[i] <- 0
     }
   }
   
   campaign.cost <- tapply(mm_pred[mm_pred[, 6] == 1,][, 7], #give me all rows of column 7 (expectedDiscount) where model.eligible == 1
                                    mm_pred[mm_pred[, 6] == 1,][, 5], sum)
 
+  if(length(campaign.cost)<10){
+    length <- (length(campaign.cost)+1)
+    for(i in c(length:10)){
+      campaign.cost[i] <- 0
+    }
+  }
   delta.cost <- m.cost - campaign.cost # additional cost 
   delta.revenue <- pred_n.ct0 * uplift #additional money earned by treating everyone in each decile
   delta.profit = delta.revenue - delta.cost # profit generated by our model camapign if we treated overyone in each decile

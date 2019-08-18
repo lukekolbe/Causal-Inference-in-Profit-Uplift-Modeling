@@ -29,16 +29,16 @@ ct_model.frame <- model.frame(f,data)
 system.time(ct_f_a <- honest.causalTree(formula=ct_model.frame,
                                         data=data,
                                         treatment = data$treatment,
-                                        est_data = f_b.estimation,
-                                        est_treatment = f_b.estimation$treatment,
+                                        est_data = f_b.estimation, #specifying the dataset used for estimating the leaf nodes
+                                        est_treatment = f_b.estimation$treatment, #treatment var in the estimation data
                                         HonestSampleSize = nrow(f_b.estimation),
-                                        cp = 0.0000001,
+                                        cp = 0.0000001, #setting cp value influences complexity of the tree and computation time
                                         split.Rule = "CT", 
                                         split.Honest = T,
-                                        minsize=10, #more = quicker?
-                                        cv.option = "CT",
-                                        cv.Honest = T,
-                                        xval=10))
+                                        minsize=10, #more is uicker
+                                        cv.option = "CT", #option to calculate the cross validation error
+                                        cv.Honest = T, #apply honest risk evalation function in cross validation
+                                        xval=10)) #10-fold cross validation
 
 opcp <-  ct_f_a$cptable[,1][which.min(ct_f_a$cptable[,4])]
 opTree <- prune(ct_f_a, opcp)
@@ -49,20 +49,20 @@ f_a_ct.hon.pred_6_0_1_28 <- predict(ct_f_a, f_a.test[,-which(names(f_a.test) %in
 # Causal Forest -----------------------------------------------------------
 
 library(doParallel)
-registerDoParallel(cores=4)
+registerDoParallel(cores=4) #set up 4 R backends for parallelization
 
-system.time(cf_f_a_dopar <- foreach(ntree=rep(1000,4),
-                                    .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)),
+system.time(cf_f_a_dopar <- foreach(ntree=rep(1000,4), #parallelized training of 4000 trees
+                                    .combine=function(a,b,c,d)grf::merge_forests(list(a,b,c,d)), #combining the 4 trees into one causalforest
                                     .multicombine=TRUE,.packages='grf') %dopar% {
                                       causal_forest(
                                         X = data[,-which(names(data) %in% exclude.vars)], #removing checkoutAmount and treatment from covariates
-                                        Y = data$checkoutAmount,
-                                        W = data$treatment,
-                                        num.trees = ntree,
-                                        honesty = TRUE,
-                                        honesty.fraction = NULL,
-                                        tune.parameters = TRUE,
-                                        seed = 1839
+                                        Y = data$checkoutAmount, #target vector
+                                        W = data$treatment, #treatment vector
+                                        num.trees = ntree, #1000 trees each
+                                        honesty = TRUE, #use honest splitting
+                                        honesty.fraction = NULL, #use half the data to determine splits
+                                        tune.parameters = TRUE, #Tune all parameters set to NULL via cross validation
+                                        seed = 1839 #fixed C++ RNG
                                       )
                                     }
 )
@@ -101,11 +101,12 @@ z <- data$treatment
 
 x.new <- f_a.test[,-which(names(f_a.test) %in% exclude.vars)]
 
-n.samples <- 20L
-n.chains  <- 8L
+n.samples <- 20L 
+n.chains  <- 8L #Integer specifying how many independent tree sets and fits should be calculated.
 system.time(fit <- bartc(y, z, x, method.trt = "bart", method.rsp = "bart",
                          estimand="att",
-                         n.samples = n.samples, n.chains = n.chains, 
+                         n.samples = n.samples, 
+                         n.chains = n.chains, 
                          n.burn = 10L,
                          n.threads = 4L, n.trees = 1000L, 
                          keepTrees = TRUE,
@@ -120,7 +121,7 @@ y1_att  <- predict(fit, x.new, value = "y1", combineChains = TRUE)
 pred_att <- data.frame(rowMeans(y1_att))
 
 
-# RIDGE/LASSO TWO MODEL -------------------------------------------------------------
+# RIDGE TWO MODEL -------------------------------------------------------------
 
 data <- f_a.train_small
 

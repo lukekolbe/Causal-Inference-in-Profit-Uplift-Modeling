@@ -23,14 +23,14 @@ f_a$ExpectedDiscount[f_a$campaignUnit=="CURRENCY"&f_a$eligibility==1] <- f_a$cam
 
 # The ATE is the outcome difference between the groups, assuming that individuals in each group are similar
 # (((which is plausible because of the random sampling)))
-mean(as.numeric(f_a$converted[f_a$treatment==1])) - mean(as.numeric(f_a$converted[f_a$treatment==0]))
-mean(f_a$checkoutAmount[f_a$treatment==1]) - mean(f_a$checkoutAmount[f_a$treatment==0])
-
-# or alternatively:
-experiment <- table(list("Treatment" = f_a$treatment, "Converted" = f_a$converted))
-experiment
-
-(experiment[2,2]/sum(experiment[2,])) - (experiment[1,2]/sum(experiment[1,]) )
+# mean(as.numeric(f_a$converted[f_a$treatment==1])) - mean(as.numeric(f_a$converted[f_a$treatment==0]))
+# mean(f_a$checkoutAmount[f_a$treatment==1]) - mean(f_a$checkoutAmount[f_a$treatment==0])
+# 
+# # or alternatively:
+# experiment <- table(list("Treatment" = f_a$treatment, "Converted" = f_a$converted))
+# experiment
+# 
+# (experiment[2,2]/sum(experiment[2,])) - (experiment[1,2]/sum(experiment[1,]) )
 
 
 # str(f_a)
@@ -95,22 +95,29 @@ f_a <- f_a[,-which(names(f_a)%in%"campaignUnit")]
 for(i in 1:ncol(f_a)){
   f_a[is.na(f_a[,i]), i] <- median(f_a[,i], na.rm = TRUE)
 }
-
 f_a <- cbind(f_a, f_a.campaignUnit)
-colMeans(is.na(f_a))
+rm(f_a.campaignUnit)
+
 
 # correlation test and removal of highly correlated variables ------------------
-#identifying pairs of highly correlated variables and removing one of each pair
-correlationMatrix <- cor(f_a[,-which(names(f_a) %in% c("converted", "treatment","checkoutAmount", "eligibility", "ExpectedDiscount", "aborted", "confirmed", "campaignMov", "campaignValue", "campaignUnit"))]) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
-highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE, exact=TRUE)
-
-f_a <- f_a[,-which(names(f_a) %in% c(highlyCorrelated))]
-
-# Uplift NIV --------------------------------------------------------------
 
 exclude.vars <- c("converted","checkoutAmount","treatment",
                   "eligibility", "ExpectedDiscount", "aborted", 
                   "confirmed", "campaignMov", "campaignValue", "campaignUnit")
+
+#identifying pairs of highly correlated variables and removing one of each pair
+correlationMatrix <- cor(f_a[,-which(names(f_a) %in% c(exclude.vars))]) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.75, names=TRUE, verbose=TRUE, exact=TRUE)
+
+# corr.plot.data <-f_a[,-which(names(f_a) %in% c(exclude.vars))]
+# corr.plot.data <- corr.plot.data[,c(2,3,7,8,10,16,17,21,22,23,26,27,33,35,36,38,39,41,42,60)]
+# correlationMatrix2 <- cor(corr.plot.data) #build a correlation matrix without necessary variables (otherwise the method will kick "treatment)
+# library(corrplot)
+# corrplot(correlationMatrix2)
+
+f_a <- f_a[,-which(names(f_a) %in% c(highlyCorrelated))]
+
+# Uplift NIV --------------------------------------------------------------
 
 n <- names(f_a)
 f_niv_fa <- as.formula(paste("converted ~", paste("trt(treatment) +"),

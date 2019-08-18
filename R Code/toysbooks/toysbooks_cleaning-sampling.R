@@ -122,8 +122,6 @@ cols.dont.want=c("TimeSinceLastConversion","TimeSinceOn.sale.",
 
 
 b_t=b_t[,! names(b_t) %in% cols.dont.want, drop=F]
-#Setting specific Column Null Values to 0, works for specificly defined columns
-b_t$InitCartNonEmpty <- ifelse(b_t$InitCartNonEmpty == c("NA"), "0", b_t$InitCartNonEmpty)
 
 # Setting specific Column Null Values to 0 (all at once):
 varlist=c("InitCartNonEmpty","FrequencyOfPreviousSessions")

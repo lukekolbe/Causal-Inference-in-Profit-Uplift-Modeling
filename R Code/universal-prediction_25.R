@@ -180,7 +180,10 @@ h_s.test <- read.csv("working data/h_s.test.csv")[,-1]
 h_s.test$checkoutAmount <-h_s.test$spend
 h_s.test$eligibility <- h_s.test$treatment # everyone who is treated is also eligible for "discount"
 h_s.test$campaignMov <- 0
-h_s.test$ExpectedDiscount <- 1 # there is no discount, but we assume a cost of 1€ for each treated individual
+h_s.test$campaignUnit <- "CURRENCY"
+h_s.test$campaignUnit <- factor(h_s.test$campaignUnit, levels=("CURRENCY"))
+h_s.test$campaignValue <- 5 # 5 cent
+h_s.test$ExpectedDiscount <- 0.05 #in €, there is no discount, but we assume a cost of 0.05€ for each treated individual
 
 
 h_s_pred.matrix<- setNames(data.frame(matrix(ncol = 10, nrow = nrow(h_s.test))), model.zoo)
@@ -220,10 +223,13 @@ for(i in seq_along(1:5)){
 
 #Manual computation of causalTree Evaluation
 h_s.test_ct <- read.csv("working data/h_s.test_ct.csv")[,-1]
-h_s.test_ct$checkoutAmount <- h_s.test_ct$spend
-h_s.test_ct$eligibility <- h_s.test$treatment # everyone who is treated is also eligible for "discount"
+h_s.test_ct$checkoutAmount <-h_s.test_ct$spend
+h_s.test_ct$eligibility <- h_s.test_ct$treatment # everyone who is treated is also eligible for "discount"
 h_s.test_ct$campaignMov <- 0
-h_s.test_ct$ExpectedDiscount <- 1 # there is no discount, but we assume a cost of 1€ for each treated individual
+h_s.test_ct$campaignUnit <- "CURRENCY"
+h_s.test_ct$campaignUnit <- factor(h_s.test$campaignUnit, levels=("CURRENCY"))
+h_s.test_ct$campaignValue <- 5 #5 cent
+h_s.test_ct$ExpectedDiscount <- 0.05 # in € there is no discount, but we assume a cost of 1€ for each treated individual
 
 h_s_pred.causalTree <- read.csv("final predictions/h_s/ct_h_s_hon.pred_8_0_1.csv")[,2]
 title <- c("causalTree")   ; test.data = h_s.test_ct ; name=c("Hillstrom")  ;  predictions = h_s_pred.causalTree

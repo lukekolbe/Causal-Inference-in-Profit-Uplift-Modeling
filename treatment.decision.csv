@@ -1,11 +1,11 @@
-"";"FashionA";"FashionB";"BooksToys";"Hillstrom"
-"2Model_Ridge";"Decile: 9 | ROI: 1.17";"Decile: 7 | ROI: 2.51";"Decile: 1 | ROI: 3.92";"Decile: 1 | ROI: 10.39"
-"2Model_Ridge_60";"Decile: 10 | ROI: 0.95";"Decile: 9 | ROI: 1.53";"Decile: 1 | ROI: 35.92";NA
-"causalTree";"Decile: 3 | ROI: 2.58";"Decile: 6 | ROI: 2.38";"Decile: 1 | ROI: 3.23";"Decile: 1 | ROI: 7.67"
-"causalTree_large";"Decile: 7 | ROI: 1.58";"Decile: 2 | ROI: 2.19";NA;NA
-"causalForest";"Decile: 9 | ROI: 1.96";"Decile: 6 | ROI: 2.25";"Decile: 1 | ROI: 3.16";"Decile: 1 | ROI: 2.53"
-"causalForest_60";"Decile: 8 | ROI: 1.28";"Decile: 6 | ROI: 2.30";"Decile: 2 | ROI: 0.01";NA
-"causalBart";"Decile: 8 | ROI: 1.21";"Decile: 8 | ROI: 1.53";"Decile: 1 | ROI: 3.24";"Decile: 1 | ROI: 10.02"
-"causalBart_60";"Decile: 10 | ROI: 0.86";"Decile: 5 | ROI: 3.08";"Decile: 1 | ROI: 0.58";NA
-"causalBoosting";"Decile: 10 | ROI: 1.10";"Decile: 8 | ROI: 3.12";"Decile: 2 | ROI: 1.76";"Decile: 1 | ROI: 0.79"
-"ensemble";"Decile: 10 | ROI: 1.04";"Decile: 4 | ROI: 2.54";"Decile: 1 | ROI: 2.37";"Decile: 2 | ROI: 2.98"
+"","FashionA","FashionB","BooksToys","Hillstrom"
+"2Model_Ridge","Decile: 9 | ROI: 0.27","Decile: 7 | ROI: 0.45","Decile: 1 | ROI: 0.67","Decile: 2 | ROI: 12.57"
+"2Model_Ridge_60","Decile: 10 | ROI: 0.22","Decile: 9 | ROI: 0.26","Decile: 1 | ROI: 1.56",NA
+"causalTree","Decile: 3 | ROI: 0.52","Decile: 6 | ROI: 0.46","Decile: 2 | ROI: 0.12","Decile: 10 | ROI: 2.89"
+"causalTree_large","Decile: 10 | ROI: 0.30","Decile: 2 | ROI: 0.26",NA,NA
+"causalForest","Decile: 9 | ROI: 0.43","Decile: 6 | ROI: 0.44","Decile: 1 | ROI: 0.52","Decile: 9 | ROI: 5.26"
+"causalForest_60","Decile: 10 | ROI: 0.27","Decile: 6 | ROI: 0.43","Decile: 9 | ROI: -0.07",NA
+"causalBart","Decile: 10 | ROI: 0.18","Decile: 8 | ROI: 0.08","Decile: 1 | ROI: 1.65","Decile: 2 | ROI: 9.39"
+"causalBart_60","Decile: 10 | ROI: 0.05","Decile: 8 | ROI: 0.27","Decile: 1 | ROI: 0.21",NA
+"causalBoosting","Decile: 10 | ROI: 0.26","Decile: 8 | ROI: 0.57","Decile: 2 | ROI: 0.07","Decile: 10 | ROI: 11.72"
+"ensemble","Decile: 10 | ROI: 0.23","Decile: 4 | ROI: 0.49","Decile: 1 | ROI: 0.86","Decile: 3 | ROI: 9.36"
