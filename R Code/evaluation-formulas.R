@@ -326,14 +326,6 @@ predProfit <- function(n,t,t.d,p) {
       + t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1])
      * (t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1&t.d$eligibility==1]/10000))
   
-  # t.d$m.ExpectedDiscount[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1] <- # for those newly eligible
-  # t.d$campaignValue[t.d$campaignUnit=="CURRENCY"&t.d$m.eligibility==1]/100
-  # 
-  # t.d$m.ExpectedDiscount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] <- 
-  #   ((t.d$checkoutAmount[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1] + 
-  #       t.d$uplift[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1])*(t.d$campaignValue[t.d$campaignUnit=="PERCENT"&t.d$m.eligibility==1]/10000))
-  # 
-  
   mm_pred = cbind(
     mm_pred,
     eligibility = t.d$eligibility,
@@ -440,9 +432,6 @@ predProfit <- function(n,t,t.d,p) {
     n.ct0    =       pred_n.ct0,
     uplift   =       uplift,
     eligible =       pred_n.ct1.eligible,
-    #real.Cost =      pred_campaign_cost,
-    #real.Rev =       pred_campaign_revenue,
-    #real.Profit  =   pred_campaign_profit,
     delta.eligible = delta.eligible,
     delta.Cost =     delta.cost,
     delta.Rev =      delta.revenue,
